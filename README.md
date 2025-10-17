@@ -50,6 +50,183 @@ auto eth1
 iface eth1 inet static
     address 192.212.1.1
     netmask 255.255.255.0
+
+# Jalur Timur
+auto eth2
+iface eth2 inet static
+    address 192.212.2.1
+    netmask 255.255.255.0
+
+# Jalur DMZ
+auto eth3
+iface eth3 inet static
+    address 192.212.3.1
+    netmask 255.255.255.0
+    up echo "nameserver 192.168.122.1" > /etc/resolv.conf
+```
+
+#### Earendil
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.1.10
+    netmask 255.255.255.0
+    gateway 192.212.1.1
+```
+
+#### Elwing
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.1.11
+    netmask 255.255.255.0
+    gateway 192.212.1.1
+```
+
+#### Círdan
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.2.10
+    netmask 255.255.255.0
+    gateway 192.212.2.1
+```
+
+#### Elrond
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.2.11
+    netmask 255.255.255.0
+    gateway 192.212.2.1
+```
+
+#### Maglor
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.2.12
+    netmask 255.255.255.0
+    gateway 192.212.2.1
+```
+
+#### Sirion (Reverse Proxy)
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.3.10
+    netmask 255.255.255.0
+    gateway 192.212.3.1
+```
+
+#### Tirion (ns1)
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.3.11
+    netmask 255.255.255.0
+    gateway 192.212.3.1
+```
+
+#### Valmar (ns2)
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.3.12
+    netmask 255.255.255.0
+    gateway 192.212.3.1
+```
+
+#### Lindon (Web statis)
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.3.13
+    netmask 255.255.255.0
+    gateway 192.212.3.1
+```
+
+#### Vingilot (Web dinamis)
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 192.212.3.14
+    netmask 255.255.255.0
+    gateway 192.212.3.1
+```
+
+## Soal_2
+Angin dari luar mulai berhembus ketika Eonwe membuka jalan ke awan NAT. Pastikan jalur WAN di router aktif dan NAT meneruskan trafik keluar bagi seluruh alamat internal sehingga host di dalam dapat mencapai layanan di luar menggunakan IP address.
+
+### SCRIPT
+#### Eonwe(Router)
+- tambahkan ke `/root/.bashrc`:
+```
+apt update
+apt install -y procps iptables
+sysctl -w net.ipv4.ip_forward=1
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -A FORWARD -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth2 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth3 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
+```
+
+### UJI
+#### Melakukan uji di semua node, kecuali pada Eonwe (contoh: Earendil)
+- `ping google.com`
+<img width="890" height="252" alt="image" src="https://github.com/user-attachments/assets/910eff02-3f9c-4d3c-9ee3-37bca89c4d3d" />
+
+## Soal_3
+Kabar dari Barat menyapa Timur. Pastikan kelima klien dapat saling berkomunikasi lintas jalur (routing internal via Eonwe berfungsi), lalu pastikan setiap host non-router menambahkan resolver 192.168.122.1 saat interfacenya aktif agar akses paket dari internet tersedia sejak awal.
+
+### SCRIPT
+#### Eonwe (Router)
+```
+auto lo
+iface lo inet loopback
+
+# WAN (DHCP)
+auto eth0
+iface eth0 inet dhcp
+
+# Jalur Barat
+auto eth1
+iface eth1 inet static
+    address 192.212.1.1
+    netmask 255.255.255.0
     up echo "nameserver 192.168.122.1" > /etc/resolv.conf
 
 # Jalur Timur
@@ -197,27 +374,18 @@ iface eth0 inet static
     up echo "nameserver 192.168.122.1" > /etc/resolv.conf
 ```
 
-## Soal_2
-Angin dari luar mulai berhembus ketika Eonwe membuka jalan ke awan NAT. Pastikan jalur WAN di router aktif dan NAT meneruskan trafik keluar bagi seluruh alamat internal sehingga host di dalam dapat mencapai layanan di luar menggunakan IP address.
-
-### SCRIPT
-#### Eonwe(Router)
-- tambahkan ke `/root/.bashrc`:
-```
-apt update
-apt install -y procps iptables
-sysctl -w net.ipv4.ip_forward=1
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-iptables -A FORWARD -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i eth0 -o eth2 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i eth0 -o eth3 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
-iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
-iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
-```
-
 ### UJI
-#### Melakukan uji di semua node, kecuali pada Eonwe (contoh: Earendil)
-- `ping google.com`
+- dari Barat (Earendil) ke Timur (Cirdan)
+  - ping 192.212.2.10
+    
+    <img width="670" height="275" alt="image" src="https://github.com/user-attachments/assets/99dfb7c8-6446-4b47-97a9-d711deb6da4d" />
 
-<img width="890" height="252" alt="image" src="https://github.com/user-attachments/assets/910eff02-3f9c-4d3c-9ee3-37bca89c4d3d" />
+- dari Timur (Cirdan) ke Barat (Earendil)
+  - ping 192.212.1.10
+
+    <img width="670" height="275" alt="image" src="https://github.com/user-attachments/assets/5f9ac4a5-6598-4539-ab90-1b57832c16fd" />
+
+- Verifikasi resolver otomatis
+  - cat /etc/resolv.conf
+    
+    <img width="530" height="57" alt="image" src="https://github.com/user-attachments/assets/96eb1af2-b431-4c7f-b2f6-5fa39ecd309e" />
