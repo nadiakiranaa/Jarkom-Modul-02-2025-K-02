@@ -35,7 +35,8 @@ Di tepi Beleriand yang porak-poranda, Eonwe merentangkan tiga jalur: Barat untuk
 
 <img width="450" height="437" alt="image" src="https://github.com/user-attachments/assets/3952fde3-b441-4520-aec7-df8fd5c6fd43" />
 
-#### EONWE (Router)
+### SCRIPT
+#### Eonwe (Router)
 ```
 auto lo
 iface lo inet loopback
@@ -196,3 +197,27 @@ iface eth0 inet static
     up echo "nameserver 192.168.122.1" > /etc/resolv.conf
 ```
 
+## Soal_2
+Angin dari luar mulai berhembus ketika Eonwe membuka jalan ke awan NAT. Pastikan jalur WAN di router aktif dan NAT meneruskan trafik keluar bagi seluruh alamat internal sehingga host di dalam dapat mencapai layanan di luar menggunakan IP address.
+
+### SCRIPT
+#### Eonwe(Router)
+- tambahkan ke `/root/.bashrc`:
+```
+apt update
+apt install -y procps iptables
+sysctl -w net.ipv4.ip_forward=1
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -A FORWARD -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth2 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth3 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth0 -j ACCEPT
+```
+
+### UJI
+#### Melakukan uji di semua node, kecuali pada Eonwe (contoh: Earendil)
+- `ping google.com`
+
+<img width="890" height="252" alt="image" src="https://github.com/user-attachments/assets/910eff02-3f9c-4d3c-9ee3-37bca89c4d3d" />
