@@ -389,3 +389,181 @@ iface eth0 inet static
   - cat /etc/resolv.conf
     
     <img width="530" height="57" alt="image" src="https://github.com/user-attachments/assets/96eb1af2-b431-4c7f-b2f6-5fa39ecd309e" />
+
+## Soal_4
+Para penjaga nama naik ke menara, di Tirion (ns1/master) bangun zona <xxxx>.com sebagai authoritative dengan SOA yang menunjuk ke ns1.<xxxx>.com dan catatan NS untuk ns1.<xxxx>.com dan ns2.<xxxx>.com. Buat A record untuk ns1.<xxxx>.com dan ns2.<xxxx>.com yang mengarah ke alamat Tirion dan Valmar sesuai glosarium, serta A record apex <xxxx>.com yang mengarah ke alamat Sirion (front door), aktifkan notify dan allow-transfer ke Valmar, set forwarders ke 192.168.122.1. Di Valmar (ns2/slave) tarik zona <xxxx>.com dari Tirion dan pastikan menjawab authoritative. pada seluruh host non-router ubah urutan resolver menjadi IP dari ns1.<xxxx>.com → ns2.<xxxx>.com → 192.168.122.1. Verifikasi query ke apex dan hostname layanan dalam zona dijawab melalui ns1/ns2.
+
+### SCRIPT
+#### Tirion (ns1)
+```
+#!/bin/bash
+# === [SETUP DNS MASTER - TIRION (ns1)] ===
+
+echo "=== [1/6] Update & install dependencies ==="
+apt update -y
+apt install -y bind9 bind9-utils bind9-dnsutils procps
+
+echo "=== [2/6] Konfigurasi BIND Master ==="
+cat > /etc/bind/named.conf.options << 'EOF'
+options {
+    directory "/var/cache/bind";
+
+    forwarders {
+        192.168.122.1;
+    };
+
+    allow-query { any; };
+    recursion yes;
+    dnssec-validation no;
+};
+EOF
+
+echo "=== [3/6] Konfigurasi Zona Master ==="
+cat > /etc/bind/named.conf.local << 'EOF'
+zone "k02.com" {
+    type master;
+    file "/etc/bind/zones/db.k02.com";
+    allow-transfer { 192.212.3.12; };   // Valmar (Slave)
+    notify yes;
+};
+EOF
+
+echo "=== [4/6] Membuat direktori zona ==="
+mkdir -p /etc/bind/zones
+chown -R bind:bind /etc/bind/zones
+
+echo "=== [5/6] Membuat file zona db.k02.com ==="
+cat > /etc/bind/zones/db.k02.com << 'EOF'
+$TTL    604800
+@       IN      SOA     ns1.k02.com. root.k02.com. (
+                        2025101701 ; Serial
+                        604800     ; Refresh
+                        86400      ; Retry
+                        2419200    ; Expire
+                        604800 )   ; Negative Cache TTL
+
+; Nameservers
+        IN      NS      ns1.k02.com.
+        IN      NS      ns2.k02.com.
+
+; A Records
+ns1     IN      A       192.212.3.11     ; Tirion (Master)
+ns2     IN      A       192.212.3.12     ; Valmar (Slave)
+@       IN      A       192.212.3.10     ; Sirion (Front door)
+
+; Optional alias
+www     IN      CNAME   @
+EOF
+
+echo "=== [6/6] Menjalankan BIND Master ==="
+# Buat alias agar service bind9 bisa dipanggil
+if [ ! -e /etc/init.d/bind9 ]; then
+    ln -s /etc/init.d/named /etc/init.d/bind9
+fi
+
+# Restart BIND
+service bind9 stop >/dev/null 2>&1
+pkill named >/dev/null 2>&1
+service bind9 start
+sleep 2
+service bind9 status
+
+echo ""
+echo "✅ Setup DNS Master (Tirion) selesai tanpa error."
+```
+
+#### Valmar (ns2)
+```
+#!/bin/bash
+# === [SETUP DNS SLAVE - VALMAR (ns2)] ===
+
+echo "=== [1/5] Update & install dependencies ==="
+apt update -y
+apt install -y bind9 bind9-utils bind9-dnsutils procps
+
+echo "=== [2/5] Konfigurasi BIND Slave ==="
+cat > /etc/bind/named.conf.options << 'EOF'
+options {
+    directory "/var/cache/bind";
+
+    forwarders {
+        192.168.122.1;
+    };
+
+    allow-query { any; };
+    recursion yes;
+    dnssec-validation no;
+};
+EOF
+
+echo "=== [3/5] Konfigurasi Zona Slave ==="
+cat > /etc/bind/named.conf.local << 'EOF'
+zone "k02.com" {
+    type slave;
+    masters { 192.212.3.11; };   # Tirion (Master)
+    file "/var/lib/bind/db.k02.com";
+};
+EOF
+
+echo "=== [4/5] Pastikan direktori zona ada & hak akses ==="
+mkdir -p /var/lib/bind
+chown -R bind:bind /var/lib/bind
+
+echo "=== [5/5] Menjalankan BIND Slave ==="
+# Buat alias agar service bind9 bisa dipanggil
+if [ ! -e /etc/init.d/bind9 ]; then
+    ln -s /etc/init.d/named /etc/init.d/bind9
+fi
+
+# Restart BIND
+service bind9 stop >/dev/null 2>&1
+pkill named >/dev/null 2>&1
+service bind9 start
+
+echo "=== Menunggu slave tarik zona dari master ==="
+sleep 10  # Tunggu 10 detik agar file zona muncul
+
+service bind9 status
+echo ""
+echo "✅ Setup DNS Slave (Valmar) selesai."
+```
+
+#### Tambahkan di seluruh konfigurasi host non router
+```
+up echo "nameserver 192.168.3.11" > /etc/resolv.conf
+up echo "nameserver 192.168.3.12" >> /etc/resolv.conf
+up echo "nameserver 192.168.122.1" >> /etc/resolv.conf
+```
+
+### UJI
+#### Tirion Master Test
+`dig @localhost k02.com SOA`
+<img width="1598" height="67" alt="image" src="https://github.com/user-attachments/assets/bfaf07ad-5d81-4ab1-86ab-623d63ccc9fb" />
+
+`dig @localhost ns1.k02.com`
+<img width="850" height="63" alt="image" src="https://github.com/user-attachments/assets/632ebe8e-442e-463c-80a4-f1ba20c6b760" />
+
+`dig @localhost ns2.k02.com`
+<img width="852" height="58" alt="image" src="https://github.com/user-attachments/assets/533b6a32-4c7d-4b09-acad-2cb94f29af85" />
+
+#### Valmar Slave Test
+`ls /var/lib/bind/`<br>
+<img width="602" height="59" alt="image" src="https://github.com/user-attachments/assets/11ac6698-7574-46dc-a2d8-bd57bdab7cc7" />
+
+`dig @localhost k02.com SOA`
+<img width="1603" height="61" alt="image" src="https://github.com/user-attachments/assets/f0394c3d-891a-4d11-97f3-8492885bf7bc" />
+
+`dig @localhost ns1.k02.com`
+<img width="859" height="64" alt="image" src="https://github.com/user-attachments/assets/2877a269-d940-4931-b5f2-15fd690740f9" />
+
+`dig @localhost ns2.k02.com`
+<img width="850" height="57" alt="image" src="https://github.com/user-attachments/assets/fdf10997-a551-4207-bac0-7bd610ea2117" />
+
+#### Client Test Query DNS Internal (contoh: Earendil)
+`dig @192.212.3.11 k02.com`
+<img width="849" height="57" alt="image" src="https://github.com/user-attachments/assets/9830d289-d263-4573-9266-09d8922aee7e" />
+
+`dig @192.212.3.12 www.k02.com`
+<img width="852" height="83" alt="image" src="https://github.com/user-attachments/assets/c3db0495-d156-4717-9a52-7cb99a1e20d0" />
+
+
