@@ -566,7 +566,6 @@ up echo "nameserver 192.168.122.1" >> /etc/resolv.conf
 `dig @192.212.3.12 www.k02.com`
 <img width="852" height="83" alt="image" src="https://github.com/user-attachments/assets/c3db0495-d156-4717-9a52-7cb99a1e20d0" />
 
-
 ## Soal_5
 “Nama memberi arah,” kata Eonwe. Namai semua tokoh (hostname) sesuai glosarium, eonwe, earendil, elwing, cirdan, elrond, maglor, sirion, tirion, valmar, lindon, vingilot, dan verifikasi bahwa setiap host mengenali dan menggunakan hostname tersebut secara system-wide. Buat setiap domain untuk masing masing node sesuai dengan namanya (contoh: eru.<xxxx>.com) dan assign IP masing-masing juga. Lakukan pengecualian untuk node yang bertanggung jawab atas ns1 dan ns2
 
@@ -815,3 +814,37 @@ ping -c 3 lindon
 ping -c 3 vingilot
 ```
 <img width="445" height="422" alt="image" src="https://github.com/user-attachments/assets/a752a49d-3df1-4c73-9116-20947c9d9a81" />
+
+## Soal_6
+Lonceng Valmar berdentang mengikuti irama Tirion. Pastikan zone transfer berjalan, Pastikan Valmar (ns2) telah menerima salinan zona terbaru dari Tirion (ns1). Nilai serial SOA di keduanya harus sama
+
+#### SCRIPT
+#### Tirion (ns1)
+```
+tee /etc/bind/named.conf.local > /dev/null <<EOF
+zone "k02.com" {
+    type master;
+    file "/etc/bind/zones/db.k02.com";
+    allow-transfer { 192.212.3.12; };   // Valmar (slave)
+    also-notify { 192.212.3.12; };      // kasih notifikasi ke Valmar
+    notify yes;
+};
+EOF
+
+service bind9 restart
+```
+
+### UJI
+#### Tirion
+`dig @192.212.3.11 k02.com SOA`<br>
+<img width="1592" height="624" alt="image" src="https://github.com/user-attachments/assets/4d937f16-1169-4b32-8531-a3e7d4913742" />
+
+#### Valmar
+`dig @192.212.3.12 k02.com ANY`
+<img width="1592" height="622" alt="image" src="https://github.com/user-attachments/assets/f6c12cad-8938-46e7-98da-709b4a3fd94b" />
+
+- Serial SOA sama dengan master (Tirion), yaitu `2025101902`
+- flag AA muncul pada Tirion dan Valmar, menandakan keduanya sudah authoritative
+- Record DNS lainnya muncul di slave
+  - 192.212.3.10 → A record untuk sirion.k02.com (apex domain).
+  - ns1.k02.com. dan ns2.k02.com. → NS records.
