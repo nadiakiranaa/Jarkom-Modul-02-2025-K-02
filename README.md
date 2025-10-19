@@ -2179,12 +2179,373 @@ cat view_results.sh
 <img width="410" height="544" alt="image" src="https://github.com/user-attachments/assets/348dde67-b158-4b24-9976-3bcee2979654" /> <br>
 <img width="465" height="651" alt="image" src="https://github.com/user-attachments/assets/6981fdbb-b5d4-4e30-aad4-1584333ead04" />
 
-
-
-
-
 ## Soal_16
 Badai mengubah garis pantai. Ubah A record lindon.<xxxx>.com ke alamat baru (ubah IP paling belakangnya saja agar mudah), naikkan SOA serial di Tirion (ns1) dan pastikan Valmar (ns2) tersinkron, karena static.<xxxx>.com adalah CNAME → lindon.<xxxx>.com, seluruh akses ke static.<xxxx>.com mengikuti alamat baru, tetapkan TTL = 30 detik untuk record yang relevan dan verifikasi tiga momen yakni sebelum perubahan (mengembalikan alamat lama), sesaat setelah perubahan namun sebelum TTL kedaluwarsa (masih alamat lama karena cache), dan setelah TTL kedaluwarsa (beralih ke alamat baru).
+
+### SCRIPT
+#### Valmar
+```
+#!/bin/bash
+# =============================================
+# SOAL 16: VALMAR (ns2) MONITORING SCRIPT
+# =============================================
+# Script untuk monitoring zone transfer dan 
+# verifikasi TTL caching behavior di Valmar
+# =============================================
+
+echo "=== SOAL 16: VALMAR (ns2) MONITORING ==="
+echo ""
+
+# ===== STEP 1: CEK STATUS BIND9 =====
+echo "[1/6] Cek status BIND9 di Valmar..."
+service bind9 status
+
+if [ $? -ne 0 ]; then
+    echo "❌ BIND9 tidak running! Start BIND9..."
+    service bind9 start
+    sleep 3
+fi
+
+echo "✅ BIND9 running"
+echo ""
+
+# ===== STEP 2: CEK ZONA FILE SLAVE =====
+echo "[2/6] Cek zona file slave..."
+if [ -f /var/lib/bind/db.k02.com ]; then
+    echo "✅ Zona file ada: /var/lib/bind/db.k02.com"
+    echo ""
+    echo "Isi zona file:"
+    cat /var/lib/bind/db.k02.com | head -20
+    echo ""
+else
+    echo "❌ Zona file TIDAK ada! Tunggu zone transfer dari master..."
+    echo "   Cek log: tail -20 /var/log/syslog | grep named"
+fi
+
+echo ""
+
+# ===== STEP 3: QUERY LOKAL (localhost) =====
+echo "[3/6] Query lokal di Valmar (localhost)..."
+echo ""
+echo "lindon.k02.com A record:"
+dig @localhost lindon.k02.com A +short
+
+echo ""
+echo "TTL value:"
+dig @localhost lindon.k02.com A | grep lindon | head -1
+
+echo ""
+
+# ===== STEP 4: QUERY SOA SERIAL =====
+echo "[4/6] Cek serial SOA..."
+echo ""
+echo "ns1 (Tirion) serial:"
+dig @192.212.3.11 k02.com SOA | grep "SOA" | head -1
+
+echo ""
+echo "ns2 (Valmar) serial:"
+dig @localhost k02.com SOA | grep "SOA" | head -1
+
+echo ""
+
+# ===== STEP 5: QUERY STATIC CNAME =====
+echo "[5/6] Verifikasi CNAME (static.k02.com)..."
+echo ""
+echo "static.k02.com resolution:"
+dig @localhost static.k02.com A
+
+echo ""
+
+# ===== STEP 6: CEK LOG TRANSFER =====
+echo "[6/6] Cek log zone transfer..."
+echo ""
+echo "Log BIND9 terbaru:"
+tail -20 /var/log/syslog | grep -i "named\|zone"
+
+echo ""
+echo "=========================================="
+echo "VALMAR MONITORING SUMMARY"
+echo "=========================================="
+echo ""
+
+# Get data
+LINDON_ADDR=$(dig @localhost lindon.k02.com A +short)
+TTL_VALUE=$(dig @localhost lindon.k02.com A | grep lindon | awk '{print $2}' | head -1)
+LOCAL_SERIAL=$(dig @localhost k02.com SOA | grep "SOA" | awk '{print $7}' | head -1)
+MASTER_SERIAL=$(dig @192.212.3.11 k02.com SOA | grep "SOA" | awk '{print $7}' | head -1)
+
+echo "Lindon Address: $LINDON_ADDR"
+echo "TTL Value: $TTL_VALUE detik"
+echo "Local Serial (Valmar): $LOCAL_SERIAL"
+echo "Master Serial (Tirion): $MASTER_SERIAL"
+
+if [ "$LOCAL_SERIAL" == "$MASTER_SERIAL" ]; then
+    echo "Status: ✅ SYNCHRONIZED"
+else
+    echo "Status: ⚠️  OUT OF SYNC (tunggu zone transfer)"
+fi
+
+echo ""
+echo "✅ VALMAR MONITORING COMPLETE!"
+```
+
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 16: DNS TTL & CACHE PROPAGATION (FIXED)
+# =============================================
+
+echo "=== SOAL 16: DNS TTL & CACHE PROPAGATION ==="
+echo ""
+
+# ===== STEP 1: CEK ZONA FILE SAAT INI =====
+echo "[DEBUG] Cek zona file sebelum modifikasi:"
+cat /etc/bind/zones/db.k02.com
+echo ""
+echo "=========================================="
+echo ""
+
+# ===== STEP 2: AMBIL SERIAL SAAT INI =====
+CURRENT_SERIAL=$(grep -oP '(?<=\s)\d{10}(?=\s*;)' /etc/bind/zones/db.k02.com | head -1)
+
+if [ -z "$CURRENT_SERIAL" ]; then
+    echo "❌ ERROR: Tidak bisa ambil serial!"
+    echo "Coba manual: nano /etc/bind/zones/db.k02.com"
+    exit 1
+fi
+
+NEW_SERIAL=$((CURRENT_SERIAL + 1))
+
+echo "✅ Serial lama: $CURRENT_SERIAL"
+echo "✅ Serial baru: $NEW_SERIAL"
+echo ""
+
+# ===== BACKUP ZONA FILE AWAL =====
+cp /etc/bind/zones/db.k02.com /etc/bind/zones/db.k02.com.backup-tahap1
+
+# ===== BUAT ZONA FILE BARU YANG BENAR =====
+cat > /etc/bind/zones/db.k02.com << 'ZONEFILE'
+$TTL 604800
+@   IN  SOA ns1.k02.com. root.k02.com. (
+        2025101904 ; Serial (will be replaced)
+        604800     ; Refresh
+        86400      ; Retry
+        2419200    ; Expire
+        604800 )   ; Negative Cache TTL
+
+; === Authoritative Nameservers ===
+    IN  NS  ns1.k02.com.
+    IN  NS  ns2.k02.com.
+
+; === APEX DOMAIN ===
+@   IN  A   192.212.3.10    ; Sirion (front door)
+
+; === DNS SERVERS ===
+ns1 IN  A   192.212.3.11    ; Tirion (master)
+ns2 IN  A   192.212.3.12    ; Valmar (slave)
+
+; === ROUTER ===
+eonwe     IN  A 192.212.1.1
+
+; === BARAT ===
+earendil  IN  A 192.212.1.10
+elwing    IN  A 192.212.1.11
+
+; === TIMUR ===
+cirdan    IN  A 192.212.2.10
+elrond    IN  A 192.212.2.11
+maglor    IN  A 192.212.2.12
+
+; === DMZ ===
+sirion    IN  A 192.212.3.10
+tirion    IN  A 192.212.3.11
+valmar    IN  A 192.212.3.12
+lindon    30  IN  A 192.212.3.13     ; TTL 30 detik - ALAMAT LAMA
+vingilot  IN  A 192.212.3.14
+
+; === ALIAS / CNAME ===
+www    IN  CNAME sirion.k02.com.
+static IN  CNAME lindon.k02.com.
+app    IN  CNAME vingilot.k02.com.
+ZONEFILE
+
+# Update serial di zona file
+sed -i "s/2025101904/$NEW_SERIAL/" /etc/bind/zones/db.k02.com
+
+echo "✅ Zona file dibuat (TAHAP 1)"
+echo ""
+
+# ===== VERIFIKASI ZONA FILE =====
+echo "[CHECK] Verifikasi zona file..."
+named-checkzone k02.com /etc/bind/zones/db.k02.com
+
+if [ $? -ne 0 ]; then
+    echo "❌ Zone check failed! Lihat error di atas"
+    echo "Restore: cp /etc/bind/zones/db.k02.com.backup-tahap1 /etc/bind/zones/db.k02.com"
+    exit 1
+fi
+
+echo "✅ Zona file valid!"
+echo ""
+
+# ===== RESTART BIND9 =====
+echo "[RESTART] Restarting BIND9..."
+service bind9 restart
+
+if [ $? -ne 0 ]; then
+    echo "❌ BIND9 restart failed!"
+    exit 1
+fi
+
+sleep 3
+
+echo "✅ BIND9 restarted"
+echo ""
+
+# ===== TAHAP 1: SEBELUM PERUBAHAN =====
+echo "=========================================="
+echo "TAHAP 1: SEBELUM PERUBAHAN"
+echo "=========================================="
+echo ""
+echo "Query lindon dari ns1 (Tirion):"
+dig @192.212.3.11 lindon.k02.com A
+
+echo ""
+echo "Query lindon dari ns2 (Valmar):"
+dig @192.212.3.12 lindon.k02.com A
+
+echo ""
+echo "⏰ Tunggu 10 detik sebelum perubahan..."
+sleep 10
+
+# ===== TAHAP 2: UBAH RECORD =====
+echo ""
+echo "=========================================="
+echo "TAHAP 2: SESAAT SETELAH PERUBAHAN (TTL belum habis)"
+echo "=========================================="
+echo ""
+echo "[CHANGE] Mengubah alamat lindon dari 192.212.3.13 → 192.212.3.23"
+echo ""
+
+SERIAL_2=$((NEW_SERIAL + 1))
+
+cat > /etc/bind/zones/db.k02.com << 'ZONEFILE'
+$TTL 604800
+@   IN  SOA ns1.k02.com. root.k02.com. (
+        2025101905 ; Serial (will be replaced)
+        604800     ; Refresh
+        86400      ; Retry
+        2419200    ; Expire
+        604800 )   ; Negative Cache TTL
+
+; === Authoritative Nameservers ===
+    IN  NS  ns1.k02.com.
+    IN  NS  ns2.k02.com.
+
+; === APEX DOMAIN ===
+@   IN  A   192.212.3.10    ; Sirion (front door)
+
+; === DNS SERVERS ===
+ns1 IN  A   192.212.3.11    ; Tirion (master)
+ns2 IN  A   192.212.3.12    ; Valmar (slave)
+
+; === ROUTER ===
+eonwe     IN  A 192.212.1.1
+
+; === BARAT ===
+earendil  IN  A 192.212.1.10
+elwing    IN  A 192.212.1.11
+
+; === TIMUR ===
+cirdan    IN  A 192.212.2.10
+elrond    IN  A 192.212.2.11
+maglor    IN  A 192.212.2.12
+
+; === DMZ ===
+sirion    IN  A 192.212.3.10
+tirion    IN  A 192.212.3.11
+valmar    IN  A 192.212.3.12
+lindon    30  IN  A 192.212.3.23     ; TTL 30 detik - ALAMAT BARU!!!
+vingilot  IN  A 192.212.3.14
+
+; === ALIAS / CNAME ===
+www    IN  CNAME sirion.k02.com.
+static IN  CNAME lindon.k02.com.
+app    IN  CNAME vingilot.k02.com.
+ZONEFILE
+
+sed -i "s/2025101905/$SERIAL_2/" /etc/bind/zones/db.k02.com
+
+echo "Serial updated: $SERIAL_2"
+echo ""
+
+named-checkzone k02.com /etc/bind/zones/db.k02.com > /dev/null
+if [ $? -ne 0 ]; then
+    echo "❌ Zone check failed after change!"
+    exit 1
+fi
+
+service bind9 restart
+sleep 3
+
+echo "✅ Zona diupdate dengan alamat baru (192.212.3.23)"
+echo ""
+
+echo "Query lindon dari ns1 (Tirion) - SUDAH BERUBAH:"
+dig @192.212.3.11 lindon.k02.com A +short
+
+echo ""
+echo "Query lindon dari ns2 (Valmar) - MASIH LAMA (cache):"
+dig @192.212.3.12 lindon.k02.com A +short
+
+echo ""
+echo "⏰ Tunggu 35 detik untuk TTL expire + zone transfer..."
+sleep 35
+
+# ===== TAHAP 3: SETELAH TTL HABIS =====
+echo ""
+echo "=========================================="
+echo "TAHAP 3: SETELAH TTL KEDALUWARSA"
+echo "=========================================="
+echo ""
+
+# Force notify
+rndc notify k02.com 2>/dev/null
+sleep 5
+
+echo "Query lindon dari ns1 (Tirion):"
+dig @192.212.3.11 lindon.k02.com A +short
+
+echo ""
+echo "Query lindon dari ns2 (Valmar) - SUDAH UPDATED:"
+dig @192.212.3.12 lindon.k02.com A +short
+
+echo ""
+echo "Verifikasi serial di kedua NS (harus SAMA):"
+echo "ns1 SOA:"
+dig @192.212.3.11 k02.com SOA | grep ns1.k02.com
+
+echo ""
+echo "ns2 SOA:"
+dig @192.212.3.12 k02.com SOA | grep ns1.k02.com
+
+echo ""
+echo "=========================================="
+echo "VERIFIKASI CNAME (static.k02.com)"
+echo "=========================================="
+echo ""
+echo "static.k02.com dari ns1:"
+dig @192.212.3.11 static.k02.com A +short
+
+echo ""
+echo "static.k02.com dari ns2:"
+dig @192.212.3.12 static.k02.com A +short
+
+echo ""
+echo "✅ SOAL 16 COMPLETED!"
+echo ""
+```
 
 ## Soal_17 
 Andaikata bumi bergetar dan semua tertidur sejenak, mereka harus bangkit sendiri. Pastikan layanan inti bind9 di ns1/ns2, nginx di Sirion/Lindon, dan PHP-FPM di Vingilot autostart saat reboot, lalu verifikasi layanan kembali menjawab sesuai fungsinya.
