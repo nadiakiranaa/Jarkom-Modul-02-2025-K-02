@@ -1420,6 +1420,179 @@ curl http://app.k02.com/about
 ## Soal_11 
 Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routing: /static → Lindon dan /app → Vingilot, sambil meneruskan header Host dan X-Real-IP ke backend. Pastikan Sirion menerima www.<xxxx>.com (kanonik) dan sirion.<xxxx>.com, dan bahwa konten pada /static dan /app di-serve melalui backend yang tepat.
 
+### SCRIPT
+#### Sirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 11: REVERSE PROXY — SIRION (FINAL VERSION)
+# =============================================
+# Hostname: www.k02.com, sirion.k02.com
+# IP: 192.212.3.10
+# Path-based routing:
+#   /static/ → Lindon (192.212.3.13:80)
+#   /app/ → Vingilot (192.212.3.14:80)
+# =============================================
+
+echo "=== SOAL 11: REVERSE PROXY (SIRION) - FINAL VERSION ==="
+
+# ===== STEP 1: INSTALL REQUIRED PACKAGES =====
+echo "[1/8] Installing required packages..."
+apt update -y
+apt install -y procps nginx
+
+echo "✅ Packages installed"
+
+# ===== STEP 2: COMPLETE PORT & PROCESS CLEANUP =====
+echo "[2/8] Complete cleanup of port 80..."
+
+# Stop service first
+service nginx stop 2>/dev/null
+
+# Kill all nginx processes
+pkill -9 nginx 2>/dev/null
+pkill -9 -f nginx 2>/dev/null
+
+# Force release port 80
+fuser -k 80/tcp 2>/dev/null
+fuser -k 80/udp 2>/dev/null
+
+# Remove lock/pid files
+rm -f /var/run/nginx.pid
+rm -f /var/run/nginx.lock
+
+# Wait for kernel to release
+sleep 4
+
+echo "✅ Port 80 fully cleaned"
+
+# ===== STEP 3: REMOVE ALL OLD CONFIGS =====
+echo "[3/8] Removing old nginx configs..."
+
+rm -f /etc/nginx/sites-enabled/*
+rm -f /etc/nginx/sites-available/static.k02.com
+rm -f /etc/nginx/sites-available/app.k02.com
+rm -f /etc/nginx/sites-available/reverse-proxy.k02.com
+rm -f /etc/nginx/sites-available/default
+
+echo "✅ Old configs removed"
+
+# ===== STEP 4: CREATE REVERSE PROXY CONFIG =====
+echo "[4/8] Creating reverse proxy configuration..."
+
+cat > /etc/nginx/sites-available/reverse-proxy.k02.com <<'EOF'
+upstream lindon_backend {
+    server 192.212.3.13:80;
+}
+
+upstream vingilot_backend {
+    server 192.212.3.14:80;
+}
+
+server {
+    listen 80;
+    server_name www.k02.com sirion.k02.com;
+
+    # Static content: /static/ → Lindon (strip /static)
+    location /static/ {
+        proxy_pass http://lindon_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Redirect /static to /static/
+    location /static {
+        return 301 /static/;
+    }
+
+    # Dynamic content: /app/ → Vingilot (strip /app)
+    location /app/ {
+        proxy_pass http://vingilot_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Redirect /app to /app/
+    location /app {
+        return 301 /app/;
+    }
+
+    # Default homepage
+    location / {
+        return 200 "Welcome to Sirion Reverse Proxy - Gateway of Beleriand\n";
+        add_header Content-Type text/plain;
+    }
+
+    access_log /var/log/nginx/reverse-proxy.k02.com.access.log;
+    error_log /var/log/nginx/reverse-proxy.k02.com.error.log;
+}
+EOF
+
+echo "✅ Reverse proxy config created"
+
+# ===== STEP 5: ENABLE SITE =====
+echo "[5/8] Enabling site..."
+
+ln -sf /etc/nginx/sites-available/reverse-proxy.k02.com /etc/nginx/sites-enabled/reverse-proxy.k02.com
+
+echo "✅ Site symlink created"
+
+# ===== STEP 6: VERIFY CONFIG =====
+echo "[6/8] Verifying nginx configuration..."
+
+nginx -t 2>&1 | grep -E "(ok|error)"
+
+if [ $? -ne 0 ]; then
+    echo "❌ Config error"
+    exit 1
+fi
+
+echo "✅ Config valid"
+
+# ===== STEP 7: START NGINX =====
+echo "[7/8] Starting nginx..."
+
+service nginx start 2>&1
+
+sleep 3
+
+echo "✅ Nginx started"
+
+# ===== STEP 8: VERIFY RUNNING =====
+echo "[8/8] Verifying nginx is running..."
+
+if service nginx status > /dev/null 2>&1; then
+    echo "✅ Nginx running"
+else
+    echo "❌ Nginx not running"
+    exit 1
+fi
+
+# Check port listening
+if netstat -tuln 2>/dev/null | grep -q ":80 " || ss -tuln 2>/dev/null | grep -q ":80 "; then
+    echo "✅ Port 80 listening"
+else
+    echo "❌ Port 80 not listening"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 11: REVERSE PROXY SETUP COMPLETE!"
+echo ""
+```
+
+### UJI
+#### di semua host kecuali Sirion (contoh: earendil)
+```
+curl http://www.k02.com/static/
+curl http://www.k02.com/app/
+```
+<img width="664" height="592" alt="image" src="https://github.com/user-attachments/assets/d2bfb5d5-4260-4150-9cfd-fb2dda5c29ea" />
+
 ## Soal_12 
 Ada kamar kecil di balik gerbang yakni /admin. Lindungi path tersebut di Sirion menggunakan Basic Auth, akses tanpa kredensial harus ditolak dan akses dengan kredensial yang benar harus diizinkan.
 
