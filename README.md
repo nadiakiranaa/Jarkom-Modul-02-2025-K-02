@@ -2175,7 +2175,7 @@ cat static_benchmark.txt
 cat view_results.sh
 ```
 <img width="500" height="605" alt="image" src="https://github.com/user-attachments/assets/0d13c191-ebde-44ae-98ec-9ef3cc6969cb" />
-<img width="511" height="534" alt="image" src="https://github.com/user-attachments/assets/6291185f-18ed-41f9-89c3-f9e90cce35d7" />
+<img width="511" height="534" alt="image" src="https://github.com/user-attachments/assets/6291185f-18ed-41f9-89c3-f9e90cce35d7" /> <br>
 <img width="410" height="544" alt="image" src="https://github.com/user-attachments/assets/348dde67-b158-4b24-9976-3bcee2979654" />
 <img width="465" height="651" alt="image" src="https://github.com/user-attachments/assets/6981fdbb-b5d4-4e30-aad4-1584333ead04" />
 
