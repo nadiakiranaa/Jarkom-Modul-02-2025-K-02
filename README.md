@@ -1080,8 +1080,342 @@ dig -x 192.212.3.14
 <img width="442" height="787" alt="image" src="https://github.com/user-attachments/assets/9d9d1447-5b67-411b-bec2-9a6a1ad6d28b" />
 
 ## Soal_9
+Lampion Lindon dinyalakan. Jalankan web statis pada hostname static.<xxxx>.com dan buka folder arsip /annals/ dengan autoindex (directory listing) sehingga isinya dapat ditelusuri. Akses harus dilakukan melalui hostname, bukan IP.
+
+### SCRIPT
+#### Lindon
+```
+#!/bin/bash
+# =============================================
+# SOAL 9: NGINX STATIC WEB SERVER — LINDON
+# =============================================
+# Hostname: static.k02.com
+# IP: 192.212.3.13
+# Folder arsip: /annals/ dengan autoindex
+# =============================================
+
+echo "=== SOAL 9: NGINX STATIC WEB SERVER (LINDON) ==="
+
+# ===== STEP 1: KILL EXISTING NGINX PROCESSES =====
+echo "[1/8] Stopping existing Nginx processes..."
+pkill -9 nginx 2>/dev/null
+fuser -k 80/tcp 2>/dev/null
+sleep 2
+rm -f /var/run/nginx.pid
+> /var/log/nginx/error.log
+
+echo "✅ Existing processes stopped"
+
+# ===== STEP 2: INSTALL NGINX =====
+echo "[2/8] Installing Nginx..."
+apt update -y
+apt install -y nginx
+
+echo "✅ Nginx installed"
+
+# ===== STEP 3: CREATE ANNALS DIRECTORY =====
+echo "[3/8] Creating /annals/ directory..."
+mkdir -p /annals
+
+# Buat contoh file untuk testing
+cat > /annals/index.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head><title>Annals Archive</title></head>
+<body>
+<h1>📚 Annals Archive</h1>
+<p>This is a test file in the annals directory.</p>
+</body>
+</html>
+EOF
+
+echo "File 1" > /annals/document1.txt
+echo "File 2" > /annals/document2.txt
+mkdir -p /annals/subfolder
+echo "Subfolder document" > /annals/subfolder/file.txt
+
+echo "✅ /annals/ directory created with sample files"
+
+# ===== STEP 4: SET PROPER PERMISSIONS =====
+echo "[4/8] Setting permissions..."
+chmod -R 755 /annals
+chown -R www-data:www-data /annals
+
+echo "✅ Permissions set"
+
+# ===== STEP 5: DISABLE DEFAULT SITE =====
+echo "[5/8] Disabling default site..."
+rm -f /etc/nginx/sites-enabled/default
+
+echo "✅ Default site disabled"
+
+# ===== STEP 6: CREATE NGINX CONFIG FOR static.k02.com =====
+echo "[6/8] Creating Nginx configuration..."
+cat > /etc/nginx/sites-available/static.k02.com <<'EOF'
+server {
+    listen 80;
+    server_name static.k02.com;
+
+    root /annals;
+    index index.html;
+
+    location / {
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+
+    access_log /var/log/nginx/static.k02.com.access.log;
+    error_log /var/log/nginx/static.k02.com.error.log;
+}
+EOF
+
+echo "✅ Nginx config created (root /annals, no alias conflict)"
+
+# ===== STEP 7: ENABLE SITE =====
+echo "[7/8] Enabling site..."
+ln -sf /etc/nginx/sites-available/static.k02.com /etc/nginx/sites-enabled/static.k02.com
+
+echo "✅ Site enabled"
+
+# ===== STEP 8: TEST, START, AND VERIFY =====
+echo "[8/8] Testing and starting Nginx..."
+
+nginx -t
+if [ $? -ne 0 ]; then
+    echo "❌ Nginx config error!"
+    exit 1
+fi
+
+service nginx start
+sleep 2
+
+if service nginx status > /dev/null 2>&1; then
+    echo "✅ Nginx started successfully"
+else
+    echo "❌ Nginx failed to start!"
+    service nginx status
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 9: Nginx static web server setup completed!"
+echo ""
+```
+
+### UJI
+#### Lindon
+```
+curl http://static.k02.com
+curl http://static.k02.com/
+curl http://static.k02.com/document1.txt
+```
+<img width="480" height="383" alt="image" src="https://github.com/user-attachments/assets/d7e918ed-2c70-4fe6-aa46-1b6e6da11d1d" />
 
 ## Soal_10 
+Vingilot mengisahkan cerita dinamis. Jalankan web dinamis (PHP-FPM) pada hostname app.<xxxx>.com dengan beranda dan halaman about, serta terapkan rewrite sehingga /about berfungsi tanpa akhiran .php. Akses harus dilakukan melalui hostname.
+
+### SCRIPT
+#### Vingilot
+```
+#!/bin/bash
+# =============================================
+# SOAL 10: PHP-FPM DYNAMIC WEB SERVER — VINGILOT
+# =============================================
+# Hostname: app.k02.com
+# IP: 192.212.3.14
+# Fitur: Homepage, About page, URL rewrite /about
+# =============================================
+
+echo "=== SOAL 10: PHP-FPM DYNAMIC WEB SERVER (VINGILOT) ==="
+
+# ===== STEP 1: KILL EXISTING PROCESSES =====
+echo "[1/9] Stopping existing processes..."
+pkill -9 nginx 2>/dev/null
+pkill -9 php-fpm 2>/dev/null
+pkill -9 php8.4-fpm 2>/dev/null
+fuser -k 80/tcp 2>/dev/null
+sleep 2
+rm -f /var/run/nginx.pid /var/run/php-fpm.pid /var/run/php8.4-fpm.pid
+> /var/log/nginx/error.log
+
+echo "✅ Existing processes stopped"
+
+# ===== STEP 2: INSTALL PACKAGES =====
+echo "[2/9] Installing Nginx and PHP-FPM..."
+apt update -y
+apt install -y nginx php-fpm php-cli
+
+echo "✅ Nginx and PHP-FPM installed"
+
+# ===== STEP 3: CREATE WEB ROOT DIRECTORY =====
+echo "[3/9] Creating web root directory..."
+mkdir -p /var/www/app
+
+echo "✅ Web root created"
+
+# ===== STEP 4: CREATE PHP FILES =====
+echo "[4/9] Creating PHP files..."
+
+# Homepage (index.php)
+cat > /var/www/app/index.php <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vingilot - Dynamic Stories</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #333; }
+        a { color: #0066cc; text-decoration: none; margin-right: 20px; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>🌟 Vingilot - Dynamic Stories</h1>
+    <p>Welcome to the dynamic web server!</p>
+    <p>
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+    </p>
+    <p>This is the homepage. Served by PHP-FPM on Vingilot.</p>
+</body>
+</html>
+EOF
+
+# About page (about.php)
+cat > /var/www/app/about.php <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>About - Vingilot</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #333; }
+        a { color: #0066cc; text-decoration: none; margin-right: 20px; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>📖 About Vingilot</h1>
+    <p>
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+    </p>
+    <p>Vingilot is a dynamic web server running PHP-FPM.</p>
+    <p>This page demonstrates URL rewriting - /about works without .php extension!</p>
+</body>
+</html>
+EOF
+
+echo "✅ PHP files created"
+
+# ===== STEP 5: SET PERMISSIONS =====
+echo "[5/9] Setting permissions..."
+chmod -R 755 /var/www/app
+chown -R www-data:www-data /var/www/app
+
+echo "✅ Permissions set"
+
+# ===== STEP 6: START PHP-FPM =====
+echo "[6/9] Starting PHP-FPM..."
+
+# Detect PHP version
+PHP_VERSION=$(php -v | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+PHP_SERVICE="php${PHP_VERSION}-fpm"
+PHP_SOCKET="/run/php/${PHP_SERVICE}.sock"
+
+# Start PHP-FPM service
+service $PHP_SERVICE start
+sleep 3
+
+# Verify socket exists
+if [ ! -S "$PHP_SOCKET" ]; then
+    echo "❌ PHP-FPM socket not found at $PHP_SOCKET"
+    exit 1
+fi
+
+echo "✅ PHP-FPM started (socket: $PHP_SOCKET)"
+
+# ===== STEP 7: DISABLE DEFAULT SITE =====
+echo "[7/9] Disabling default site..."
+rm -f /etc/nginx/sites-enabled/default
+
+echo "✅ Default site disabled"
+
+# ===== STEP 8: CREATE NGINX CONFIG =====
+echo "[8/9] Creating Nginx configuration..."
+cat > /etc/nginx/sites-available/app.k02.com <<EOF
+server {
+    listen 80;
+    server_name app.k02.com;
+
+    root /var/www/app;
+    index index.php index.html;
+
+    # URL rewriting - /about -> /about.php
+    location / {
+        try_files \$uri \$uri/ \$uri.php?\$query_string;
+    }
+
+    # PHP-FPM configuration
+    location ~ \.php$ {
+        fastcgi_pass unix:${PHP_SOCKET};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Deny access to .htaccess
+    location ~ /\.ht {
+        deny all;
+    }
+
+    access_log /var/log/nginx/app.k02.com.access.log;
+    error_log /var/log/nginx/app.k02.com.error.log;
+}
+EOF
+
+echo "✅ Nginx config created"
+
+# ===== STEP 9: ENABLE SITE, TEST AND START =====
+echo "[9/9] Enabling site and starting Nginx..."
+
+# Enable site
+ln -sf /etc/nginx/sites-available/app.k02.com /etc/nginx/sites-enabled/app.k02.com
+
+# Test config
+nginx -t
+if [ $? -ne 0 ]; then
+    echo "❌ Nginx config error!"
+    exit 1
+fi
+
+# Start Nginx
+service nginx start
+sleep 2
+
+# Verify
+if service nginx status > /dev/null 2>&1; then
+    echo "✅ Nginx started successfully"
+else
+    echo "❌ Nginx failed to start!"
+    service nginx status
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 10: PHP-FPM dynamic web server setup completed!"
+echo ""
+```
+
+### UJI
+#### Vingilot
+```
+curl http://app.k02.com
+curl http://app.k02.com/
+curl http://app.k02.com/about
+```
+<img width="610" height="925" alt="image" src="https://github.com/user-attachments/assets/3dcb4fbe-61d3-44e5-97b0-ee071cbd322e" />
 
 ## Soal_11 
 Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routing: /static → Lindon dan /app → Vingilot, sambil meneruskan header Host dan X-Real-IP ke backend. Pastikan Sirion menerima www.<xxxx>.com (kanonik) dan sirion.<xxxx>.com, dan bahwa konten pada /static dan /app di-serve melalui backend yang tepat.
