@@ -2093,7 +2093,7 @@ echo ""
 <img width="1561" height="142" alt="image" src="https://github.com/user-attachments/assets/2c9650e6-ef4c-4dc7-a4c8-e350b4e83976" />
 
 ## Soal_15 
-Pelabuhan diuji gelombang kecil, salah satu klien yakni Elrond menjadi penguji dan menggunakan ApacheBench (ab) untuk membombardir http://www.<xxxx>.com/app/ dan http://www.<xxxx>.com/static/ melalui hostname kanonik. Untuk setiap endpoint lakukan 500 request dengan concurrency 10, dan rangkum hasil dalam tabel ringkas.
+Pelabuhan diuji gelombang kecil, salah satu klien yakni Elrond menjadi penguji dan menggunakan ApacheBench (ab) untuk membombardir `http://www.<xxxx>.com/app/` dan `http://www.<xxxx>.com/static/` melalui hostname kanonik. Untuk setiap endpoint lakukan 500 request dengan concurrency 10, dan rangkum hasil dalam tabel ringkas.
 
 ### SCRIPT 
 #### Elrond
@@ -2938,7 +2938,7 @@ dig @192.212.3.11 morgoth.k02.com TXT +short
 <img width="867" height="170" alt="image" src="https://github.com/user-attachments/assets/6f048c64-22f5-484b-8155-903ab1fde6d0" />
 
 ## Soal_19
-Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → www.<xxxx>.com, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
+Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → `www.<xxxx>.com`, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
 
 ## Soal_20
 Kisah ditutup di beranda Sirion. Sediakan halaman depan bertajuk “War of Wrath: Lindon bertahan” yang memuat tautan ke /app dan /static. Pastikan seluruh klien membuka beranda dan menelusuri kedua tautan tersebut menggunakan hostname (mis. www.<xxxx>.com), bukan IP address.
