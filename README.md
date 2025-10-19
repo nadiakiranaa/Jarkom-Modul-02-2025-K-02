@@ -848,3 +848,72 @@ service bind9 restart
 - Record DNS lainnya muncul di slave
   - 192.212.3.10 → A record untuk sirion.k02.com (apex domain).
   - ns1.k02.com. dan ns2.k02.com. → NS records.
+
+## Soal_7
+Peta kota dan pelabuhan dilukis. Sirion sebagai gerbang, Lindon sebagai web statis, Vingilot sebagai web dinamis. Tambahkan pada zona <xxxx>.com A record untuk sirion.<xxxx>.com (IP Sirion), lindon.<xxxx>.com (IP Lindon), dan vingilot.<xxxx>.com (IP Vingilot). Tetapkan CNAME :
+- `www.<xxxx>.com` → `sirion.<xxxx>.com`, 
+- `static.<xxxx>.com` → `lindon.<xxxx>.com`, dan 
+- `app.<xxxx>.com` → `vingilot.<xxxx>.com.` 
+Verifikasi dari dua klien berbeda bahwa seluruh hostname tersebut ter-resolve ke tujuan yang benar dan konsisten.
+
+### UJI
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# DNS MASTER SETUP SCRIPT — TIRION (ns1)
+# Nomor 7 - Menambahkan CNAME record
+# =============================================
+
+echo "[1/4] Menghapus www CNAME @ yang lama..."
+# Hapus www CNAME @ dari zona file jika ada
+sed -i '/^www\s*IN\s*CNAME\s*@$/d' /etc/bind/zones/db.k02.com
+
+echo "[2/4] Menambahkan CNAME record..."
+cat >> /etc/bind/zones/db.k02.com <<'EOF'
+
+; === ALIAS / CNAME ===
+www    IN  CNAME sirion.k02.com.
+static IN  CNAME lindon.k02.com.
+app    IN  CNAME vingilot.k02.com.
+EOF
+
+echo "[3/4] Naikkan serial SOA..."
+# Ambil serial lama dengan regex lebih spesifik
+OLD_SERIAL=$(grep '^\s*[0-9]\{10\}' /etc/bind/zones/db.k02.com | head -1 | awk '{print $1}')
+
+if [ -z "$OLD_SERIAL" ]; then
+    echo "❌ ERROR: Tidak bisa ambil serial!"
+    exit 1
+fi
+
+# Tambah 1
+NEW_SERIAL=$((OLD_SERIAL + 1))
+
+echo "Serial lama: $OLD_SERIAL → Serial baru: $NEW_SERIAL"
+
+# Replace dengan lebih aman (hanya di line dengan SOA)
+sed -i "0,/$OLD_SERIAL/s/$OLD_SERIAL/$NEW_SERIAL/" /etc/bind/zones/db.k02.com
+
+echo "[4/4] Verifikasi zone file..."
+named-checkzone k02.com /etc/bind/zones/db.k02.com
+
+if [ $? -eq 0 ]; then
+    echo "✅ Zone file valid!"
+    service bind9 restart
+    echo "✅ BIND9 restart berhasil!"
+    echo "✅ CNAME record untuk www, static, dan app telah ditambahkan!"
+else
+    echo "❌ Zone file error! Restart BIND9 dibatalkan."
+    exit 1
+fi
+```
+
+### UJI
+#### Di Klien (contoh: Earendil)
+```
+dig @192.212.3.11 www.k02.com A +short
+dig @192.212.3.11 static.k02.com A +short
+dig @192.212.3.11 app.k02.com A +short
+```
+<img width="789" height="251" alt="image" src="https://github.com/user-attachments/assets/95b24b4d-afde-4cef-bbc4-2c42b6ea1806" />
