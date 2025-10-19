@@ -2095,6 +2095,94 @@ echo ""
 ## Soal_15 
 Pelabuhan diuji gelombang kecil, salah satu klien yakni Elrond menjadi penguji dan menggunakan ApacheBench (ab) untuk membombardir http://www.<xxxx>.com/app/ dan http://www.<xxxx>.com/static/ melalui hostname kanonik. Untuk setiap endpoint lakukan 500 request dengan concurrency 10, dan rangkum hasil dalam tabel ringkas.
 
+### SCRIPT 
+#### Elrond
+```
+#!/bin/bash
+# =============================================
+# SOAL 15: LOAD TESTING — ELROND (DNS FIX)
+# =============================================
+
+echo "=== SOAL 15: LOAD TESTING (ELROND) ==="
+
+# Fix DNS - IP yang benar
+echo "Fixing DNS..."
+cat > /etc/resolv.conf <<'EOF'
+search k02.com
+nameserver 192.212.3.11
+nameserver 192.212.3.12
+nameserver 192.168.122.1
+EOF
+
+sleep 2
+
+# Install ApacheBench
+apt update -y && apt install -y apache2-utils
+
+# Create results directory
+mkdir -p /root/benchmark_results
+cd /root/benchmark_results
+
+# Test 1: /app/
+echo ""
+echo "=========================================="
+echo "TEST 1: /app/ (500 requests, concurrency 10)"
+echo "=========================================="
+ab -n 500 -c 10 http://www.k02.com/app/ > app_benchmark.txt 2>&1
+echo "✅ Test 1 completed"
+
+# Test 2: /static/
+echo ""
+echo "=========================================="
+echo "TEST 2: /static/ (500 requests, concurrency 10)"
+echo "=========================================="
+ab -n 500 -c 10 http://www.k02.com/static/ > static_benchmark.txt 2>&1
+echo "✅ Test 2 completed"
+
+# Extract metrics
+APP_COMPLETE=$(grep "Complete requests:" app_benchmark.txt | awk '{print $3}')
+APP_FAILED=$(grep "Failed requests:" app_benchmark.txt | awk '{print $3}')
+APP_RPS=$(grep "Requests per second:" app_benchmark.txt | awk '{print $4}' | head -1)
+APP_TIME=$(grep "Time per request:" app_benchmark.txt | awk '{print $4}' | head -1)
+
+STATIC_COMPLETE=$(grep "Complete requests:" static_benchmark.txt | awk '{print $3}')
+STATIC_FAILED=$(grep "Failed requests:" static_benchmark.txt | awk '{print $3}')
+STATIC_RPS=$(grep "Requests per second:" static_benchmark.txt | awk '{print $4}' | head -1)
+STATIC_TIME=$(grep "Time per request:" static_benchmark.txt | awk '{print $4}' | head -1)
+
+# Display summary
+echo ""
+echo "=========================================="
+echo "SUMMARY"
+echo "=========================================="
+printf "%-30s | %-15s | %-15s\n" "Metric" "/app/" "/static/"
+echo "----------------------------------------------------------------"
+printf "%-30s | %-15s | %-15s\n" "Complete requests" "$APP_COMPLETE" "$STATIC_COMPLETE"
+printf "%-30s | %-15s | %-15s\n" "Failed requests" "$APP_FAILED" "$STATIC_FAILED"
+printf "%-30s | %-15s | %-15s\n" "Requests/sec" "$APP_RPS" "$STATIC_RPS"
+printf "%-30s | %-15s | %-15s\n" "Time/request (ms)" "$APP_TIME" "$STATIC_TIME"
+echo ""
+
+echo "✅ Results saved in /root/benchmark_results/"
+```
+
+### UJI
+```
+cd /root/benchmark_results/
+cat app_benchmark.txt
+cat comparison_table.txt
+cat static_benchmark.txt
+cat view_results.sh
+```
+<img width="500" height="605" alt="image" src="https://github.com/user-attachments/assets/0d13c191-ebde-44ae-98ec-9ef3cc6969cb" />
+<img width="511" height="534" alt="image" src="https://github.com/user-attachments/assets/6291185f-18ed-41f9-89c3-f9e90cce35d7" />
+<img width="410" height="544" alt="image" src="https://github.com/user-attachments/assets/348dde67-b158-4b24-9976-3bcee2979654" />
+<img width="465" height="651" alt="image" src="https://github.com/user-attachments/assets/6981fdbb-b5d4-4e30-aad4-1584333ead04" />
+
+
+
+
+
 ## Soal_16
 Badai mengubah garis pantai. Ubah A record lindon.<xxxx>.com ke alamat baru (ubah IP paling belakangnya saja agar mudah), naikkan SOA serial di Tirion (ns1) dan pastikan Valmar (ns2) tersinkron, karena static.<xxxx>.com adalah CNAME → lindon.<xxxx>.com, seluruh akses ke static.<xxxx>.com mengikuti alamat baru, tetapkan TTL = 30 detik untuk record yang relevan dan verifikasi tiga momen yakni sebelum perubahan (mengembalikan alamat lama), sesaat setelah perubahan namun sebelum TTL kedaluwarsa (masih alamat lama karena cache), dan setelah TTL kedaluwarsa (beralih ke alamat baru).
 
