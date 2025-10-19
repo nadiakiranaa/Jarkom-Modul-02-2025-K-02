@@ -2939,6 +2939,308 @@ dig @192.212.3.11 morgoth.k02.com TXT +short
 
 ## Soal_19
 Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → `www.<xxxx>.com`, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
+### SCRIPT
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 19: CNAME HAVENS — TIRION (ns1)
+# =============================================
+# Menambahkan havens.k02.com sebagai CNAME → www.k02.com
+# =============================================
+
+echo "=== SOAL 19: CNAME HAVENS (TIRION) ==="
+echo ""
+
+# ===== STEP 1: BACKUP ZONE FILE =====
+echo "[1/8] Creating backup..."
+cp /etc/bind/zones/db.k02.com /etc/bind/zones/db.k02.com.bak-soal19
+echo "✅ Backup created"
+echo ""
+
+# ===== STEP 2: GET CURRENT SERIAL =====
+echo "[2/8] Getting current serial..."
+CURRENT_SERIAL=$(grep -oP '(?<=\s)\d{10}(?=\s*;)' /etc/bind/zones/db.k02.com | head -1)
+
+if [ -z "$CURRENT_SERIAL" ]; then
+    echo "❌ ERROR: Cannot get current serial!"
+    exit 1
+fi
+
+NEW_SERIAL=$((CURRENT_SERIAL + 1))
+
+echo "✅ Current serial: $CURRENT_SERIAL"
+echo "✅ New serial: $NEW_SERIAL"
+echo ""
+
+# ===== STEP 3: REMOVE OLD HAVENS RECORD (IF ANY) =====
+echo "[3/8] Cleaning old havens record..."
+sed -i '/^havens/d' /etc/bind/zones/db.k02.com
+sed -i '/SOAL 19/d' /etc/bind/zones/db.k02.com
+echo "✅ Old records removed"
+echo ""
+
+# ===== STEP 4: ADD HAVENS CNAME =====
+echo "[4/8] Adding havens CNAME record..."
+
+cat >> /etc/bind/zones/db.k02.com <<'EOF'
+
+; === SOAL 19: HAVENS HARBOR ===
+havens    IN  CNAME www.k02.com.
+EOF
+
+echo "✅ CNAME record added"
+echo ""
+
+# ===== STEP 5: UPDATE SERIAL =====
+echo "[5/8] Updating serial..."
+sed -i "0,/$CURRENT_SERIAL/s/$CURRENT_SERIAL/$NEW_SERIAL/" /etc/bind/zones/db.k02.com
+echo "✅ Serial updated: $CURRENT_SERIAL → $NEW_SERIAL"
+echo ""
+
+# ===== STEP 6: VERIFY ZONE FILE =====
+echo "[6/8] Verifying zone file..."
+echo "Last 10 lines:"
+echo "----------------------------------------"
+tail -10 /etc/bind/zones/db.k02.com
+echo "----------------------------------------"
+echo ""
+
+# ===== STEP 7: CHECK ZONE FILE SYNTAX =====
+echo "[7/8] Checking zone file syntax..."
+named-checkzone k02.com /etc/bind/zones/db.k02.com
+
+if [ $? -ne 0 ]; then
+    echo "❌ ZONE FILE ERROR!"
+    echo "Restoring backup..."
+    mv /etc/bind/zones/db.k02.com.bak-soal19 /etc/bind/zones/db.k02.com
+    exit 1
+fi
+
+echo "✅ Zone file syntax is OK!"
+echo ""
+
+# ===== STEP 8: RESTART BIND9 =====
+echo "[8/8] Restarting BIND9..."
+service bind9 restart
+
+if [ $? -eq 0 ]; then
+    echo "✅ BIND9 restarted successfully"
+else
+    echo "❌ BIND9 restart FAILED!"
+    service bind9 status
+    exit 1
+fi
+
+sleep 3
+echo ""
+
+# ===== TESTING =====
+echo "=========================================="
+echo "TESTING QUERIES"
+echo "=========================================="
+echo ""
+
+echo "[TEST 1] Query havens.k02.com CNAME:"
+dig @localhost havens.k02.com CNAME +short
+echo ""
+
+echo "[TEST 2] Query havens.k02.com A (resolved):"
+dig @localhost havens.k02.com A +short
+echo ""
+
+echo "[TEST 3] Full query havens.k02.com:"
+dig @localhost havens.k02.com
+echo ""
+
+echo "[TEST 4] Verify SOA serial updated:"
+dig @localhost k02.com SOA | grep "SOA" | head -1
+echo ""
+
+# ===== VERIFICATION =====
+echo "=========================================="
+echo "VERIFICATION"
+echo "=========================================="
+echo ""
+
+HAVENS_CNAME=$(dig @localhost havens.k02.com CNAME +short)
+HAVENS_A=$(dig @localhost havens.k02.com A +short)
+
+if [ -n "$HAVENS_CNAME" ] && [ -n "$HAVENS_A" ]; then
+    echo "✅ SUCCESS! CNAME record is working!"
+    echo ""
+    echo "havens.k02.com CNAME: $HAVENS_CNAME"
+    echo "havens.k02.com A: $HAVENS_A"
+    echo ""
+else
+    echo "❌ FAILED! Record not found"
+    echo "Debugging info:"
+    echo "CNAME result: '$HAVENS_CNAME'"
+    echo "A result: '$HAVENS_A'"
+fi
+
+echo ""
+echo "✅ SOAL 19: SETUP COMPLETE!"
+echo ""
+echo "=========================================="
+echo "NEXT STEPS - TEST FROM CLIENTS"
+echo "=========================================="
+echo ""
+echo "Run from Earendil or other clients:"
+echo ""
+echo "# Test CNAME resolution"
+echo "dig @192.212.3.11 havens.k02.com CNAME +short"
+echo ""
+echo "# Test A record resolution"
+echo "dig @192.212.3.11 havens.k02.com A +short"
+echo ""
+echo "# Test web access through havens"
+echo "curl http://havens.k02.com/"
+echo "curl http://havens.k02.com/static/"
+echo "curl http://havens.k02.com/app/"
+echo ""
+echo "=========================================="
+echo ""
+```
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 19 FIX: UPDATE SIRION CONFIG
+# =============================================
+# Tambahkan havens.k02.com sebagai valid hostname
+# =============================================
+
+echo "=== SOAL 19 FIX: UPDATE SIRION CONFIG ==="
+echo ""
+
+# ===== BACKUP =====
+echo "[1/3] Creating backup..."
+cp /etc/nginx/sites-available/reverse-proxy.k02.com /etc/nginx/sites-available/reverse-proxy.k02.com.bak-soal19-fix
+echo "✅ Backup created"
+echo ""
+
+# ===== UPDATE CONFIG =====
+echo "[2/3] Updating nginx configuration..."
+
+cat > /etc/nginx/sites-available/reverse-proxy.k02.com <<'EOF'
+upstream lindon_backend {
+    server 192.212.3.13:80;
+}
+
+upstream vingilot_backend {
+    server 192.212.3.14:80;
+}
+
+# Redirect IP address dan sirion.k02.com ke canonical hostname
+server {
+    listen 80;
+    server_name 192.212.3.10 sirion.k02.com;
+
+    return 301 http://www.k02.com$request_uri;
+}
+
+# Main server - Accept www.k02.com AND havens.k02.com
+server {
+    listen 80;
+    server_name www.k02.com havens.k02.com;
+
+    # Static content: /static/ → Lindon
+    location /static/ {
+        proxy_pass http://lindon_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /static {
+        return 301 /static/;
+    }
+
+    # Dynamic content: /app/ → Vingilot
+    location /app/ {
+        proxy_pass http://vingilot_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /app {
+        return 301 /app/;
+    }
+
+    # Protected admin area
+    location /admin/ {
+        auth_basic "Restricted Area - Admin Only";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+
+        root /var/www;
+        index index.html;
+        try_files $uri $uri/ =404;
+    }
+
+    location /admin {
+        return 301 /admin/;
+    }
+
+    # Default homepage
+    location / {
+        return 200 "Welcome to Sirion Reverse Proxy - Gateway of Beleriand\nCanonical Hostname: www.k02.com\nAlias: havens.k02.com\n";
+        add_header Content-Type text/plain;
+    }
+
+    access_log /var/log/nginx/reverse-proxy.k02.com.access.log;
+    error_log /var/log/nginx/reverse-proxy.k02.com.error.log;
+}
+EOF
+
+echo "✅ Config updated"
+echo ""
+
+# ===== TEST & RELOAD =====
+echo "[3/3] Testing and reloading nginx..."
+
+nginx -t
+
+if [ $? -ne 0 ]; then
+    echo "❌ Config error! Restoring backup..."
+    mv /etc/nginx/sites-available/reverse-proxy.k02.com.bak-soal19-fix /etc/nginx/sites-available/reverse-proxy.k02.com
+    exit 1
+fi
+
+echo "✅ Config valid"
+
+service nginx reload
+
+if [ $? -eq 0 ]; then
+    echo "✅ Nginx reloaded"
+else
+    echo "❌ Reload failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 19 FIX COMPLETE!"
+echo ""
+```
+#### UJI 
+#### di semua client (Contoh: earendil)
+```
+# Test DNS resolution
+dig @192.212.3.11 havens.k02.com CNAME +short
+dig @192.212.3.11 havens.k02.com A +short
+
+# Test web access
+curl http://havens.k02.com/
+curl http://havens.k02.com/static/
+curl http://havens.k02.com/app/
+```
+<img width="458" height="690" alt="image" src="https://github.com/user-attachments/assets/97ad4c5d-e212-4f6d-a88d-9eb487e8b30b" /> <br>
+<img width="586" height="402" alt="image" src="https://github.com/user-attachments/assets/1cc3e2dd-3662-4f25-8e8a-d1c78865c280" /> <br>
+
+
 
 ## Soal_20
 Kisah ditutup di beranda Sirion. Sediakan halaman depan bertajuk “War of Wrath: Lindon bertahan” yang memuat tautan ke /app dan /static. Pastikan seluruh klien membuka beranda dan menelusuri kedua tautan tersebut menggunakan hostname (mis. `www.<xxxx>.com`), bukan IP address.
