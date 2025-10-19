@@ -2741,6 +2741,199 @@ echo ""
 
 ## Soal_18
 Sang musuh memiliki banyak nama. Tambahkan melkor.<xxxx>.com sebagai record TXT berisi “Morgoth (Melkor)” dan tambahkan morgoth.<xxxx>.com sebagai CNAME → melkor.<xxxx>.com, verifikasi query TXT terhadap melkor dan bahwa query ke morgoth mengikuti aliasnya.
+### SCRIPT
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 18: DEBUG & FIX - TIRION (ns1)
+# =============================================
+
+echo "=========================================="
+echo "SOAL 18: DEBUG & FIX SCRIPT"
+echo "=========================================="
+echo ""
+
+# ===== STEP 1: CEK ISI ZONE FILE SAAT INI =====
+echo "[STEP 1] Cek isi zone file saat ini..."
+echo "----------------------------------------"
+cat /etc/bind/zones/db.k02.com
+echo "----------------------------------------"
+echo ""
+
+# ===== STEP 2: CEK APAKAH RECORD SUDAH ADA =====
+echo "[STEP 2] Cek apakah melkor/morgoth sudah ada..."
+if grep -q "melkor" /etc/bind/zones/db.k02.com; then
+    echo "✅ Found 'melkor' in zone file"
+else
+    echo "❌ 'melkor' NOT FOUND in zone file"
+fi
+
+if grep -q "morgoth" /etc/bind/zones/db.k02.com; then
+    echo "✅ Found 'morgoth' in zone file"
+else
+    echo "❌ 'morgoth' NOT FOUND in zone file"
+fi
+echo ""
+
+# ===== STEP 3: BACKUP ZONE FILE =====
+echo "[STEP 3] Creating backup..."
+cp /etc/bind/zones/db.k02.com /etc/bind/zones/db.k02.com.bak-soal18-fix
+echo "✅ Backup created"
+echo ""
+
+# ===== STEP 4: GET CURRENT SERIAL =====
+echo "[STEP 4] Getting current serial..."
+CURRENT_SERIAL=$(grep -oP '(?<=\s)\d{10}(?=\s*;)' /etc/bind/zones/db.k02.com | head -1)
+
+if [ -z "$CURRENT_SERIAL" ]; then
+    echo "❌ ERROR: Cannot get current serial!"
+    echo "Current zone file content:"
+    head -20 /etc/bind/zones/db.k02.com
+    exit 1
+fi
+
+NEW_SERIAL=$((CURRENT_SERIAL + 1))
+
+echo "✅ Current serial: $CURRENT_SERIAL"
+echo "✅ New serial: $NEW_SERIAL"
+echo ""
+
+# ===== STEP 5: REMOVE OLD RECORDS (IF ANY) =====
+echo "[STEP 5] Cleaning old melkor/morgoth records..."
+sed -i '/melkor/d' /etc/bind/zones/db.k02.com
+sed -i '/morgoth/d' /etc/bind/zones/db.k02.com
+sed -i '/SOAL 18/d' /etc/bind/zones/db.k02.com
+echo "✅ Old records removed"
+echo ""
+
+# ===== STEP 6: ADD NEW RECORDS =====
+echo "[STEP 6] Adding new records..."
+
+# Add records BEFORE the last line (EOF)
+cat >> /etc/bind/zones/db.k02.com <<'EOF'
+
+; === SOAL 18: ENEMY RECORDS ===
+melkor    IN  TXT   "Morgoth (Melkor)"
+morgoth   IN  CNAME melkor.k02.com.
+EOF
+
+echo "✅ Records added"
+echo ""
+
+# ===== STEP 7: UPDATE SERIAL =====
+echo "[STEP 7] Updating serial..."
+sed -i "0,/$CURRENT_SERIAL/s/$CURRENT_SERIAL/$NEW_SERIAL/" /etc/bind/zones/db.k02.com
+echo "✅ Serial updated: $CURRENT_SERIAL → $NEW_SERIAL"
+echo ""
+
+# ===== STEP 8: SHOW NEW ZONE FILE =====
+echo "[STEP 8] Verify new zone file content..."
+echo "----------------------------------------"
+echo "Last 10 lines of zone file:"
+tail -10 /etc/bind/zones/db.k02.com
+echo "----------------------------------------"
+echo ""
+
+# ===== STEP 9: CHECK ZONE FILE SYNTAX =====
+echo "[STEP 9] Checking zone file syntax..."
+named-checkzone k02.com /etc/bind/zones/db.k02.com
+
+if [ $? -ne 0 ]; then
+    echo "❌ ZONE FILE ERROR!"
+    echo "Restoring backup..."
+    mv /etc/bind/zones/db.k02.com.bak-soal18-fix /etc/bind/zones/db.k02.com
+    exit 1
+fi
+
+echo "✅ Zone file syntax is OK!"
+echo ""
+
+# ===== STEP 10: RESTART BIND9 =====
+echo "[STEP 10] Restarting BIND9..."
+service bind9 restart
+
+if [ $? -eq 0 ]; then
+    echo "✅ BIND9 restarted successfully"
+else
+    echo "❌ BIND9 restart FAILED!"
+    service bind9 status
+    exit 1
+fi
+
+sleep 3
+echo ""
+
+# ===== STEP 11: TEST QUERIES =====
+echo "=========================================="
+echo "TESTING QUERIES"
+echo "=========================================="
+echo ""
+
+echo "[TEST 1] Query melkor.k02.com TXT:"
+dig @localhost melkor.k02.com TXT +short
+echo ""
+
+echo "[TEST 2] Query morgoth.k02.com CNAME:"
+dig @localhost morgoth.k02.com CNAME +short
+echo ""
+
+echo "[TEST 3] Query morgoth.k02.com TXT (via CNAME):"
+dig @localhost morgoth.k02.com TXT +short
+echo ""
+
+echo "[TEST 4] Full query melkor.k02.com:"
+dig @localhost melkor.k02.com TXT
+echo ""
+
+echo "[TEST 5] Full query morgoth.k02.com:"
+dig @localhost morgoth.k02.com CNAME
+echo ""
+
+# ===== STEP 12: VERIFY SUCCESS =====
+echo "=========================================="
+echo "VERIFICATION"
+echo "=========================================="
+echo ""
+
+MELKOR_TXT=$(dig @localhost melkor.k02.com TXT +short)
+MORGOTH_CNAME=$(dig @localhost morgoth.k02.com CNAME +short)
+
+if [ -n "$MELKOR_TXT" ] && [ -n "$MORGOTH_CNAME" ]; then
+    echo "✅ SUCCESS! Records are working!"
+    echo ""
+    echo "melkor.k02.com TXT: $MELKOR_TXT"
+    echo "morgoth.k02.com CNAME: $MORGOTH_CNAME"
+    echo ""
+    echo "✅ SOAL 18: SETUP COMPLETE!"
+else
+    echo "❌ FAILED! Records not found"
+    echo ""
+    echo "Debugging info:"
+    echo "melkor TXT result: '$MELKOR_TXT'"
+    echo "morgoth CNAME result: '$MORGOTH_CNAME'"
+    echo ""
+    echo "Zone file check:"
+    grep -A 2 "SOAL 18" /etc/bind/zones/db.k02.com
+fi
+
+echo ""
+echo "=========================================="
+echo ""
+```
+### UJI
+#### Di semua client (Contoh: Earendil)
+```
+# Test TXT record
+dig @192.212.3.11 melkor.k02.com TXT +short
+
+# Test CNAME record
+dig @192.212.3.11 morgoth.k02.com CNAME +short
+
+# Test TXT via CNAME
+dig @192.212.3.11 morgoth.k02.com TXT +short
+``` 
+<img width="623" height="219" alt="image" src="https://github.com/user-attachments/assets/17099d2c-c667-4f45-9fa7-6b6d2bc5fdb4" />
 
 ## Soal_19
 Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → www.<xxxx>.com, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
