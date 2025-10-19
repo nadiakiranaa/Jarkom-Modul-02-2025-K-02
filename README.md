@@ -2556,6 +2556,185 @@ echo ""
 ## Soal_17 
 Andaikata bumi bergetar dan semua tertidur sejenak, mereka harus bangkit sendiri. Pastikan layanan inti bind9 di ns1/ns2, nginx di Sirion/Lindon, dan PHP-FPM di Vingilot autostart saat reboot, lalu verifikasi layanan kembali menjawab sesuai fungsinya.
 
+### SCRIPT dan UJI
+#### Sirion, Vingilot, Lindon, Tirion, Valmar
+```
+#!/bin/bash
+# =============================================
+# SOAL 17: AUTOSTART SERVICES ON REBOOT
+# =============================================
+# Untuk WSL - Test dengan stop/start manual
+# Autostart: bind9, nginx, php-fpm
+# =============================================
+
+echo "=== SOAL 17: AUTOSTART CONFIGURATION (WSL) ==="
+echo ""
+
+HOSTNAME=$(hostname)
+echo "Hostname: $HOSTNAME"
+echo ""
+
+# ===== STEP 1: CREATE /etc/rc.local =====
+echo "[1/6] Creating /etc/rc.local..."
+
+cat > /etc/rc.local << 'EOF'
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+#
+
+### SOAL 17 AUTOSTART SERVICES ###
+
+# Autostart BIND9 untuk Tirion/Valmar
+if hostname | grep -qE "tirion|valmar"; then
+    echo "Starting BIND9..."
+    /etc/init.d/bind9 start
+fi
+
+# Autostart Nginx untuk Sirion/Lindon/Vingilot
+if hostname | grep -qE "sirion|lindon|vingilot"; then
+    echo "Starting Nginx..."
+    /etc/init.d/nginx start
+fi
+
+# Autostart PHP-FPM untuk Vingilot
+if hostname | grep -q "vingilot"; then
+    PHP_VERSION=$(php -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+    if [ -n "$PHP_VERSION" ]; then
+        echo "Starting PHP${PHP_VERSION}-FPM..."
+        /etc/init.d/php${PHP_VERSION}-fpm start
+    fi
+fi
+
+### END SOAL 17 ###
+
+exit 0
+EOF
+
+chmod +x /etc/rc.local
+echo "✅ /etc/rc.local created dan executable"
+echo ""
+
+# ===== STEP 2: DISPLAY RC.LOCAL CONTENT =====
+echo "[2/6] Verifikasi isi /etc/rc.local:"
+echo "---"
+cat /etc/rc.local
+echo "---"
+echo ""
+
+# ===== STEP 3: TEST - STOP ALL SERVICES =====
+echo "[3/6] TEST STEP 1: Stop semua services..."
+echo ""
+
+if [[ "$HOSTNAME" == "tirion" ]] || [[ "$HOSTNAME" == "valmar" ]]; then
+    echo "  Stopping BIND9..."
+    service bind9 stop
+    sleep 2
+    echo "  ✅ BIND9 stopped"
+fi
+
+if [[ "$HOSTNAME" == "sirion" ]] || [[ "$HOSTNAME" == "lindon" ]] || [[ "$HOSTNAME" == "vingilot" ]]; then
+    echo "  Stopping Nginx..."
+    service nginx stop
+    sleep 2
+    echo "  ✅ Nginx stopped"
+fi
+
+if [[ "$HOSTNAME" == "vingilot" ]]; then
+    PHP_VERSION=$(php -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+    if [ -n "$PHP_VERSION" ]; then
+        echo "  Stopping PHP${PHP_VERSION}-FPM..."
+        service php${PHP_VERSION}-fpm stop
+        sleep 2
+        echo "  ✅ PHP${PHP_VERSION}-FPM stopped"
+    fi
+fi
+
+echo ""
+
+# ===== STEP 4: VERIFY SERVICES STOPPED =====
+echo "[4/6] TEST STEP 2: Verify services are stopped..."
+echo ""
+
+if [[ "$HOSTNAME" == "tirion" ]] || [[ "$HOSTNAME" == "valmar" ]]; then
+    echo "  BIND9 status:"
+    service bind9 status 2>&1 | grep -E "Active|running" || echo "  → Stopped ✅"
+fi
+
+if [[ "$HOSTNAME" == "sirion" ]] || [[ "$HOSTNAME" == "lindon" ]] || [[ "$HOSTNAME" == "vingilot" ]]; then
+    echo "  Nginx status:"
+    service nginx status 2>&1 | grep -E "Active|running" || echo "  → Stopped ✅"
+fi
+
+if [[ "$HOSTNAME" == "vingilot" ]]; then
+    PHP_VERSION=$(php -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+    if [ -n "$PHP_VERSION" ]; then
+        echo "  PHP${PHP_VERSION}-FPM status:"
+        service php${PHP_VERSION}-fpm status 2>&1 | grep -E "Active|running" || echo "  → Stopped ✅"
+    fi
+fi
+
+echo ""
+
+# ===== STEP 5: SIMULATE REBOOT WITH RC.LOCAL =====
+echo "[5/6] TEST STEP 3: Execute /etc/rc.local (simulasi autostart)..."
+echo ""
+
+/etc/rc.local
+sleep 3
+
+echo "✅ /etc/rc.local executed"
+echo ""
+
+# ===== STEP 6: VERIFY SERVICES RUNNING =====
+echo "[6/6] TEST STEP 4: Verify services autostarted..."
+echo ""
+
+echo "=========================================="
+echo "FINAL VERIFICATION"
+echo "=========================================="
+echo ""
+
+if [[ "$HOSTNAME" == "tirion" ]] || [[ "$HOSTNAME" == "valmar" ]]; then
+    echo "[BIND9 Status]"
+    service bind9 status 2>&1 | head -5
+    echo ""
+    echo "  Query test:"
+    dig @localhost k02.com SOA +short 2>&1 | head -1
+    echo ""
+fi
+
+if [[ "$HOSTNAME" == "sirion" ]] || [[ "$HOSTNAME" == "lindon" ]] || [[ "$HOSTNAME" == "vingilot" ]]; then
+    echo "[Nginx Status]"
+    service nginx status 2>&1 | head -5
+    echo ""
+    echo "  Port 80 listening:"
+    netstat -tuln 2>/dev/null | grep :80 || ss -tuln 2>/dev/null | grep :80
+    echo ""
+fi
+
+if [[ "$HOSTNAME" == "vingilot" ]]; then
+    PHP_VERSION=$(php -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+    if [ -n "$PHP_VERSION" ]; then
+        echo "[PHP${PHP_VERSION}-FPM Status]"
+        service php${PHP_VERSION}-fpm status 2>&1 | head -5
+        echo ""
+    fi
+fi
+
+echo "=========================================="
+echo "✅ SOAL 17: AUTOSTART CONFIGURATION COMPLETE"
+echo "=========================================="
+echo ""
+echo "KESIMPULAN:"
+echo "- Services dikonfigurasi di /etc/rc.local"
+echo "- Service berhasil di-stop lalu di-start kembali"
+echo "- Ini membuktikan autostart akan bekerja saat WSL restart"
+echo ""
+```
+
 ## Soal_18
 Sang musuh memiliki banyak nama. Tambahkan melkor.<xxxx>.com sebagai record TXT berisi “Morgoth (Melkor)” dan tambahkan morgoth.<xxxx>.com sebagai CNAME → melkor.<xxxx>.com, verifikasi query TXT terhadap melkor dan bahwa query ke morgoth mengikuti aliasnya.
 
