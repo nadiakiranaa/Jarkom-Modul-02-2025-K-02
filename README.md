@@ -1418,14 +1418,14 @@ curl http://app.k02.com/about
 <img width="610" height="925" alt="image" src="https://github.com/user-attachments/assets/3dcb4fbe-61d3-44e5-97b0-ee071cbd322e" />
 
 ## Soal_11 
-Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routing: /static → Lindon dan /app → Vingilot, sambil meneruskan header Host dan X-Real-IP ke backend. Pastikan Sirion menerima www.<xxxx>.com (kanonik) dan sirion.<xxxx>.com, dan bahwa konten pada /static dan /app di-serve melalui backend yang tepat.
+Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routing: /static → Lindon dan /app → Vingilot, sambil meneruskan header Host dan X-Real-IP ke backend. Pastikan Sirion menerima `www.<xxxx>.com` (kanonik) dan sirion.<xxxx>.com, dan bahwa konten pada /static dan /app di-serve melalui backend yang tepat.
 
 ### SCRIPT
 #### Sirion
 ```
 #!/bin/bash
 # =============================================
-# SOAL 11: REVERSE PROXY — SIRION (FINAL VERSION)
+# SOAL 11: REVERSE PROXY — SIRION
 # =============================================
 # Hostname: www.k02.com, sirion.k02.com
 # IP: 192.212.3.10
@@ -1434,7 +1434,7 @@ Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routi
 #   /app/ → Vingilot (192.212.3.14:80)
 # =============================================
 
-echo "=== SOAL 11: REVERSE PROXY (SIRION) - FINAL VERSION ==="
+echo "=== SOAL 11: REVERSE PROXY (SIRION) ==="
 
 # ===== STEP 1: INSTALL REQUIRED PACKAGES =====
 echo "[1/8] Installing required packages..."
@@ -1586,7 +1586,7 @@ echo ""
 ```
 
 ### UJI
-#### di semua host kecuali Sirion (contoh: earendil)
+#### di semua host kecuali Sirion (contoh: Earendil)
 ```
 curl http://www.k02.com/static/
 curl http://www.k02.com/app/
@@ -1595,6 +1595,183 @@ curl http://www.k02.com/app/
 
 ## Soal_12 
 Ada kamar kecil di balik gerbang yakni /admin. Lindungi path tersebut di Sirion menggunakan Basic Auth, akses tanpa kredensial harus ditolak dan akses dengan kredensial yang benar harus diizinkan.
+
+### SCRIPT
+#### Sirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 12: BASIC AUTH FOR /admin — SIRION (FIXED)
+# =============================================
+# Path: /admin
+# Username: admin
+# Password: admin123
+# =============================================
+
+echo "=== SOAL 12: BASIC AUTH FOR /admin (SIRION) - FIXED ==="
+
+# ===== STEP 1: INSTALL APACHE2-UTILS =====
+echo "[1/6] Installing apache2-utils..."
+apt update -y
+apt install -y apache2-utils
+
+echo "✅ apache2-utils installed"
+
+# ===== STEP 2: CREATE PASSWORD FILE =====
+echo "[2/6] Creating password file..."
+
+mkdir -p /etc/nginx/auth
+htpasswd -cb /etc/nginx/auth/.htpasswd admin admin123
+chmod 640 /etc/nginx/auth/.htpasswd
+chown www-data:www-data /etc/nginx/auth/.htpasswd
+
+echo "✅ Password file created"
+
+# ===== STEP 3: CREATE ADMIN CONTENT DIRECTORY =====
+echo "[3/6] Creating admin content directory..."
+
+mkdir -p /var/www/admin
+cat > /var/www/admin/index.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Area - Sirion</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Admin Area - Sirion Gateway</h1>
+        <p>✅ You are authenticated successfully!</p>
+        <p>Welcome to the restricted admin panel.</p>
+        <hr>
+        <p><small>Protected by Basic Authentication</small></p>
+    </div>
+</body>
+</html>
+EOF
+
+chmod -R 755 /var/www/admin
+chown -R www-data:www-data /var/www/admin
+
+echo "✅ Admin content created"
+
+# ===== STEP 4: UPDATE NGINX CONFIG =====
+echo "[4/6] Updating nginx configuration..."
+
+cp /etc/nginx/sites-available/reverse-proxy.k02.com /etc/nginx/sites-available/reverse-proxy.k02.com.bak
+
+cat > /etc/nginx/sites-available/reverse-proxy.k02.com <<'EOF'
+upstream lindon_backend {
+    server 192.212.3.13:80;
+}
+
+upstream vingilot_backend {
+    server 192.212.3.14:80;
+}
+
+server {
+    listen 80;
+    server_name www.k02.com sirion.k02.com;
+
+    # Static content: /static/ → Lindon
+    location /static/ {
+        proxy_pass http://lindon_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /static {
+        return 301 /static/;
+    }
+
+    # Dynamic content: /app/ → Vingilot
+    location /app/ {
+        proxy_pass http://vingilot_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /app {
+        return 301 /app/;
+    }
+
+    # Protected admin area - DENGAN BASIC AUTH
+    location /admin/ {
+        auth_basic "Restricted Area - Admin Only";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+
+        # Serve static content dari /var/www/admin
+        root /var/www;
+        index index.html;
+        try_files $uri $uri/ =404;
+    }
+
+    location /admin {
+        return 301 /admin/;
+    }
+
+    # Default homepage
+    location / {
+        return 200 "Welcome to Sirion Reverse Proxy - Gateway of Beleriand\n";
+        add_header Content-Type text/plain;
+    }
+
+    access_log /var/log/nginx/reverse-proxy.k02.com.access.log;
+    error_log /var/log/nginx/reverse-proxy.k02.com.error.log;
+}
+EOF
+
+echo "✅ Nginx config updated"
+
+# ===== STEP 5: VERIFY CONFIG =====
+echo "[5/6] Verifying nginx configuration..."
+
+nginx -t
+
+if [ $? -ne 0 ]; then
+    echo "❌ Config error!"
+    exit 1
+fi
+
+echo "✅ Config valid"
+
+# ===== STEP 6: RELOAD NGINX =====
+echo "[6/6] Reloading nginx..."
+
+service nginx reload
+
+echo "✅ Nginx reloaded"
+
+echo ""
+echo "✅ SOAL 12: BASIC AUTH SETUP COMPLETE (FIXED)!"
+echo ""
+```
+
+### UJI
+#### di semua host kecuali Sirion (contoh: Earendil)
+```
+curl http://www.k02.com/admin/
+curl -u admin:admin123 http://www.k02.com/admin/
+```
+<img width="680" height="743" alt="image" src="https://github.com/user-attachments/assets/2748f03a-a34c-4335-905c-3c6409b24f0b" />
 
 ## Soal_13
 “Panggil aku dengan nama,” ujar Sirion kepada mereka yang datang hanya menyebut angka. Kanonisasikan endpoint, akses melalui IP address Sirion maupun sirion.<xxxx>.com harus redirect 301 ke www.<xxxx>.com sebagai hostname kanonik.
