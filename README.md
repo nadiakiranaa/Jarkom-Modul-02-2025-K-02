@@ -2939,6 +2939,7 @@ dig @192.212.3.11 morgoth.k02.com TXT +short
 
 ## Soal_19
 Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → `www.<xxxx>.com`, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
+
 ### SCRIPT
 #### Tirion
 ```
@@ -3102,6 +3103,7 @@ echo ""
 echo "=========================================="
 echo ""
 ```
+
 #### Tirion
 ```
 #!/bin/bash
@@ -3225,7 +3227,8 @@ echo ""
 echo "✅ SOAL 19 FIX COMPLETE!"
 echo ""
 ```
-#### UJI 
+
+### UJI 
 #### di semua client (Contoh: earendil)
 ```
 # Test DNS resolution
@@ -3239,8 +3242,6 @@ curl http://havens.k02.com/app/
 ```
 <img width="458" height="690" alt="image" src="https://github.com/user-attachments/assets/97ad4c5d-e212-4f6d-a88d-9eb487e8b30b" /> <br>
 <img width="586" height="402" alt="image" src="https://github.com/user-attachments/assets/1cc3e2dd-3662-4f25-8e8a-d1c78865c280" /> <br>
-
-
 
 ## Soal_20
 Kisah ditutup di beranda Sirion. Sediakan halaman depan bertajuk “War of Wrath: Lindon bertahan” yang memuat tautan ke /app dan /static. Pastikan seluruh klien membuka beranda dan menelusuri kedua tautan tersebut menggunakan hostname (mis. `www.<xxxx>.com`), bukan IP address.
