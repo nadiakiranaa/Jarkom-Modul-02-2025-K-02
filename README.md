@@ -2741,6 +2741,7 @@ echo ""
 
 ## Soal_18
 Sang musuh memiliki banyak nama. Tambahkan melkor.<xxxx>.com sebagai record TXT berisi “Morgoth (Melkor)” dan tambahkan morgoth.<xxxx>.com sebagai CNAME → melkor.<xxxx>.com, verifikasi query TXT terhadap melkor dan bahwa query ke morgoth mengikuti aliasnya.
+
 ### SCRIPT
 #### Tirion
 ```
@@ -2921,8 +2922,9 @@ echo ""
 echo "=========================================="
 echo ""
 ```
+
 ### UJI
-#### Di semua client (Contoh: Earendil)
+#### di semua client (Contoh: earendil)
 ```
 # Test TXT record
 dig @192.212.3.11 melkor.k02.com TXT +short
@@ -2933,7 +2935,7 @@ dig @192.212.3.11 morgoth.k02.com CNAME +short
 # Test TXT via CNAME
 dig @192.212.3.11 morgoth.k02.com TXT +short
 ``` 
-<img width="623" height="219" alt="image" src="https://github.com/user-attachments/assets/17099d2c-c667-4f45-9fa7-6b6d2bc5fdb4" />
+<img width="867" height="170" alt="image" src="https://github.com/user-attachments/assets/6f048c64-22f5-484b-8155-903ab1fde6d0" />
 
 ## Soal_19
 Pelabuhan diperluas bagi para pelaut. Tambahkan havens.<xxxx>.com sebagai CNAME → www.<xxxx>.com, lalu akses layanan melalui hostname tersebut dari dua klien berbeda untuk memastikan resolusi dan rute aplikasi berfungsi.
