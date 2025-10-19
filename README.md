@@ -1774,7 +1774,143 @@ curl -u admin:admin123 http://www.k02.com/admin/
 <img width="680" height="743" alt="image" src="https://github.com/user-attachments/assets/2748f03a-a34c-4335-905c-3c6409b24f0b" />
 
 ## Soal_13
-“Panggil aku dengan nama,” ujar Sirion kepada mereka yang datang hanya menyebut angka. Kanonisasikan endpoint, akses melalui IP address Sirion maupun sirion.<xxxx>.com harus redirect 301 ke www.<xxxx>.com sebagai hostname kanonik.
+“Panggil aku dengan nama,” ujar Sirion kepada mereka yang datang hanya menyebut angka. Kanonisasikan endpoint, akses melalui IP address Sirion maupun sirion.<xxxx>.com harus redirect 301 ke `www.<xxxx>.com` sebagai hostname kanonik.
+
+### SCRIPT
+#### Sirion
+```
+#!/bin/bash
+# =============================================
+# SOAL 13: CANONICALIZATION — SIRION
+# =============================================
+# Redirect 301:
+#   192.212.3.10 → www.k02.com
+#   sirion.k02.com → www.k02.com
+# Canonical hostname: www.k02.com
+# =============================================
+
+echo "=== SOAL 13: CANONICALIZATION (SIRION) ==="
+
+# ===== STEP 1: BACKUP EXISTING CONFIG =====
+echo "[1/3] Backing up existing config..."
+cp /etc/nginx/sites-available/reverse-proxy.k02.com /etc/nginx/sites-available/reverse-proxy.k02.com.bak-soal13
+
+echo "✅ Backup created"
+
+# ===== STEP 2: UPDATE NGINX CONFIG WITH CANONICALIZATION =====
+echo "[2/3] Updating nginx configuration with canonicalization..."
+
+cat > /etc/nginx/sites-available/reverse-proxy.k02.com <<'EOF'
+upstream lindon_backend {
+    server 192.212.3.13:80;
+}
+
+upstream vingilot_backend {
+    server 192.212.3.14:80;
+}
+
+# Redirect IP address dan sirion.k02.com ke canonical hostname
+server {
+    listen 80;
+    server_name 192.212.3.10 sirion.k02.com;
+    
+    # Redirect semua request ke www.k02.com dengan status 301 (Moved Permanently)
+    return 301 http://www.k02.com$request_uri;
+}
+
+# Main server - Canonical hostname
+server {
+    listen 80;
+    server_name www.k02.com;
+
+    # Static content: /static/ → Lindon
+    location /static/ {
+        proxy_pass http://lindon_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /static {
+        return 301 /static/;
+    }
+
+    # Dynamic content: /app/ → Vingilot
+    location /app/ {
+        proxy_pass http://vingilot_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /app {
+        return 301 /app/;
+    }
+
+    # Protected admin area
+    location /admin/ {
+        auth_basic "Restricted Area - Admin Only";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        
+        root /var/www;
+        index index.html;
+        try_files $uri $uri/ =404;
+    }
+
+    location /admin {
+        return 301 /admin/;
+    }
+
+    # Default homepage
+    location / {
+        return 200 "Welcome to Sirion Reverse Proxy - Gateway of Beleriand\nCanonical Hostname: www.k02.com\n";
+        add_header Content-Type text/plain;
+    }
+
+    access_log /var/log/nginx/reverse-proxy.k02.com.access.log;
+    error_log /var/log/nginx/reverse-proxy.k02.com.error.log;
+}
+EOF
+
+echo "✅ Nginx config updated with canonicalization"
+
+# ===== STEP 3: VERIFY AND RELOAD =====
+echo "[3/3] Verifying and reloading nginx..."
+
+nginx -t
+
+if [ $? -ne 0 ]; then
+    echo "❌ Config error! Restoring backup..."
+    mv /etc/nginx/sites-available/reverse-proxy.k02.com.bak-soal13 /etc/nginx/sites-available/reverse-proxy.k02.com
+    exit 1
+fi
+
+echo "✅ Config valid"
+
+service nginx reload
+
+if [ $? -eq 0 ]; then
+    echo "✅ Nginx reloaded successfully"
+else
+    echo "❌ Nginx reload failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 13: CANONICALIZATION SETUP COMPLETE!"
+echo ""
+```
+
+### UJI
+#### di semua host kecuali Sirion (contoh: Earendil)
+```
+curl -I http://192.212.3.10/
+curl -I http://sirion.k02.com/
+curl -I http://www.k02.com/
+```
+<img width="509" height="556" alt="image" src="https://github.com/user-attachments/assets/f1b4a95b-9ff8-4b54-a76f-f8a3cc94aa3f" />
 
 ## Soal_14
 Di Vingilot, catatan kedatangan harus jujur. Pastikan access log aplikasi di Vingilot mencatat IP address klien asli saat lalu lintas melewati Sirion (bukan IP Sirion).
