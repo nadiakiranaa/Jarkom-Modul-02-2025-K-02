@@ -2547,6 +2547,12 @@ echo "✅ SOAL 16 COMPLETED!"
 echo ""
 ```
 
+### UJI
+<img width="720" height="964" alt="image" src="https://github.com/user-attachments/assets/187eee78-61e8-45aa-98ab-0b0e240c579f" /><br><br>
+<img width="936" height="648" alt="image" src="https://github.com/user-attachments/assets/cbca3156-1588-419d-aa3f-167a03638c01" /><br><br>
+<img width="1039" height="379" alt="image" src="https://github.com/user-attachments/assets/6565fac6-b9cf-46ae-97e1-c3ba21381320" />
+
+
 ## Soal_17 
 Andaikata bumi bergetar dan semua tertidur sejenak, mereka harus bangkit sendiri. Pastikan layanan inti bind9 di ns1/ns2, nginx di Sirion/Lindon, dan PHP-FPM di Vingilot autostart saat reboot, lalu verifikasi layanan kembali menjawab sesuai fungsinya.
 
