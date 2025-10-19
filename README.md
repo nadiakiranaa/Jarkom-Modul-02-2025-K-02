@@ -530,8 +530,8 @@ echo "✅ Setup DNS Slave (Valmar) selesai."
 
 #### Tambahkan di seluruh konfigurasi host non router
 ```
-up echo "nameserver 192.168.3.11" > /etc/resolv.conf
-up echo "nameserver 192.168.3.12" >> /etc/resolv.conf
+up echo "nameserver 192.212.3.11" > /etc/resolv.conf
+up echo "nameserver 192.212.3.12" >> /etc/resolv.conf
 up echo "nameserver 192.168.122.1" >> /etc/resolv.conf
 ```
 
@@ -567,3 +567,251 @@ up echo "nameserver 192.168.122.1" >> /etc/resolv.conf
 <img width="852" height="83" alt="image" src="https://github.com/user-attachments/assets/c3db0495-d156-4717-9a52-7cb99a1e20d0" />
 
 
+## Soal_5
+“Nama memberi arah,” kata Eonwe. Namai semua tokoh (hostname) sesuai glosarium, eonwe, earendil, elwing, cirdan, elrond, maglor, sirion, tirion, valmar, lindon, vingilot, dan verifikasi bahwa setiap host mengenali dan menggunakan hostname tersebut secara system-wide. Buat setiap domain untuk masing masing node sesuai dengan namanya (contoh: eru.<xxxx>.com) dan assign IP masing-masing juga. Lakukan pengecualian untuk node yang bertanggung jawab atas ns1 dan ns2
+
+### SCRIPT
+#### Tirion (ns1)
+```
+#!/bin/bash
+# =============================================
+# DNS MASTER SETUP SCRIPT — TIRION (ns1)
+# Nomor 5 - Konfigurasi authoritative zone k02.com
+# =============================================
+
+echo "[1/6] Installing BIND9..."
+apt update -y
+apt install -y bind9 bind9-utils bind9-dnsutils
+
+echo "[2/6] Creating zone directory..."
+mkdir -p /etc/bind/zones
+
+echo "[3/6] Writing zone file for k02.com..."
+cat > /etc/bind/zones/db.k02.com <<'EOF'
+$TTL 604800
+@   IN  SOA ns1.k02.com. root.k02.com. (
+        2025101902 ; Serial (naikkan setiap edit)
+        604800     ; Refresh
+        86400      ; Retry
+        2419200    ; Expire
+        604800 )   ; Negative Cache TTL
+
+; === Authoritative Nameservers ===
+    IN  NS  ns1.k02.com.
+    IN  NS  ns2.k02.com.
+
+; === APEX DOMAIN ===
+@   IN  A   192.212.3.10    ; Sirion (front door)
+www IN  CNAME @
+
+; === DNS SERVERS ===
+ns1 IN  A   192.212.3.11    ; Tirion (master)
+ns2 IN  A   192.212.3.12    ; Valmar (slave)
+
+; === ROUTER ===
+eonwe     IN  A 192.212.1.1  ; Router utama
+
+; === BARAT ===
+earendil  IN  A 192.212.1.10
+elwing    IN  A 192.212.1.11
+
+; === TIMUR ===
+cirdan    IN  A 192.212.2.10
+elrond    IN  A 192.212.2.11
+maglor    IN  A 192.212.2.12
+
+; === DMZ ===
+sirion    IN  A 192.212.3.10
+tirion    IN  A 192.212.3.11
+valmar    IN  A 192.212.3.12
+lindon    IN  A 192.212.3.13
+vingilot  IN  A 192.212.3.14
+EOF
+
+echo "[4/6] Configuring named.conf.local..."
+cat > /etc/bind/named.conf.local <<'EOF'
+zone "k02.com" {
+    type master;
+    file "/etc/bind/zones/db.k02.com";
+    allow-transfer { 192.212.3.12; };  // Valmar (slave)
+    notify yes;
+};
+EOF
+
+echo "[5/6] Configuring named.conf.options..."
+cat > /etc/bind/named.conf.options <<'EOF'
+options {
+    directory "/var/cache/bind";
+
+    forwarders {
+        192.168.122.1;
+    };
+
+    allow-query { any; };
+    recursion yes;
+    dnssec-validation no;
+    listen-on { any; };
+};
+EOF
+
+echo "[6/6] Restarting BIND9 service..."
+service bind9 restart
+
+echo "✅ DNS Master (ns1 - Tirion) configuration completed successfully!"
+```
+
+#### EONWE (Router)
+```
+HOSTNAME=eonwe
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+hostname && hostname -f
+```
+
+#### Earendil
+```
+HOSTNAME=earendil
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Elwing
+```
+HOSTNAME=elwing
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Cirdan
+```
+HOSTNAME=cirdan
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+hostname && hostname -f
+```
+
+#### Elrond
+```
+HOSTNAME=elrond
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Maglor
+```
+HOSTNAME=maglor
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Sirion (Reverse Proxy)
+```
+HOSTNAME=sirion
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Tirion (ns1)
+```
+HOSTNAME=tirion
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Valmar (ns2)
+```
+HOSTNAME=valmar
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Lindon (Web statis)
+```
+HOSTNAME=lindon
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+#### Vingilot (Web dinamis)
+```
+HOSTNAME=vingilot
+DOMAIN=k02.com
+echo "$HOSTNAME" > /etc/hostname
+hostname "$HOSTNAME"
+sed -i "/127.0.1.1/d" /etc/hosts
+echo "127.0.1.1   $HOSTNAME.$DOMAIN $HOSTNAME" >> /etc/hosts
+sed -i '1i search k02.com' /etc/resolv.conf
+hostname && hostname -f
+```
+
+### UJI
+#### Tirion (ns1)
+```
+named-checkconf
+named-checkzone k02.com /etc/bind/zones/db.k02.com
+```
+<img width="710" height="110" alt="image" src="https://github.com/user-attachments/assets/3265062f-7ee4-4be4-8223-c3dce7d31847" />
+
+#### Di seluruh Host (contoh: Earendil)
+`hostname && hostname -f`<br>
+<img width="574" height="90" alt="image" src="https://github.com/user-attachments/assets/0ccf1e2d-48b0-48d6-b435-6985b985a04f" />
+
+```
+ping -c 3 eonwe
+ping -c 3 elwing
+ping -c 3 cirdan
+ping -c 3 elrond
+ping -c 3 maglor
+ping -c 3 sirion
+ping -c 3 tirion
+ping -c 3 valmar
+ping -c 3 lindon
+ping -c 3 vingilot
+```
+<img width="445" height="422" alt="image" src="https://github.com/user-attachments/assets/a752a49d-3df1-4c73-9116-20947c9d9a81" />
