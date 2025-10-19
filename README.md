@@ -1078,3 +1078,17 @@ dig -x 192.212.3.13
 dig -x 192.212.3.14
 ```
 <img width="442" height="787" alt="image" src="https://github.com/user-attachments/assets/9d9d1447-5b67-411b-bec2-9a6a1ad6d28b" />
+
+## Soal_9
+
+## Soal_10 
+
+## Soal_11 
+Di muara sungai, Sirion berdiri sebagai reverse proxy. Terapkan path-based routing: /static → Lindon dan /app → Vingilot, sambil meneruskan header Host dan X-Real-IP ke backend. Pastikan Sirion menerima www.<xxxx>.com (kanonik) dan sirion.<xxxx>.com, dan bahwa konten pada /static dan /app di-serve melalui backend yang tepat.
+
+## Soal_12 
+Ada kamar kecil di balik gerbang yakni /admin. Lindungi path tersebut di Sirion menggunakan Basic Auth, akses tanpa kredensial harus ditolak dan akses dengan kredensial yang benar harus diizinkan.
+
+## Soal_13
+“Panggil aku dengan nama,” ujar Sirion kepada mereka yang datang hanya menyebut angka. Kanonisasikan endpoint, akses melalui IP address Sirion maupun sirion.<xxxx>.com harus redirect 301 ke www.<xxxx>.com sebagai hostname kanonik.
+
