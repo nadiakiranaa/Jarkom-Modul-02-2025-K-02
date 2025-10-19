@@ -2734,6 +2734,10 @@ echo "- Service berhasil di-stop lalu di-start kembali"
 echo "- Ini membuktikan autostart akan bekerja saat WSL restart"
 echo ""
 ```
+- `chmod +x soal17.sh`
+- `./soal17.sh`
+<img width="663" height="978" alt="image" src="https://github.com/user-attachments/assets/dc306206-78d5-40a8-9f95-04737aecf064" />
+<img width="679" height="610" alt="image" src="https://github.com/user-attachments/assets/3fb94d76-8677-4240-bf52-89a857f2621f" />
 
 ## Soal_18
 Sang musuh memiliki banyak nama. Tambahkan melkor.<xxxx>.com sebagai record TXT berisi “Morgoth (Melkor)” dan tambahkan morgoth.<xxxx>.com sebagai CNAME → melkor.<xxxx>.com, verifikasi query TXT terhadap melkor dan bahwa query ke morgoth mengikuti aliasnya.
