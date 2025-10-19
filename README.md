@@ -917,3 +917,164 @@ dig @192.212.3.11 static.k02.com A +short
 dig @192.212.3.11 app.k02.com A +short
 ```
 <img width="789" height="251" alt="image" src="https://github.com/user-attachments/assets/95b24b4d-afde-4cef-bbc4-2c42b6ea1806" />
+
+## Soal_8
+Setiap jejak harus bisa diikuti. Di Tirion (ns1) deklarasikan satu reverse zone untuk segmen DMZ tempat Sirion, Lindon, Vingilot berada. Di Valmar (ns2) tarik reverse zone tersebut sebagai slave, isi PTR untuk ketiga hostname itu agar pencarian balik IP address mengembalikan hostname yang benar, lalu pastikan query reverse untuk alamat Sirion, Lindon, Vingilot dijawab authoritative.
+
+### SCRIPT
+#### Tirion
+```
+#!/bin/bash
+# =============================================
+# REVERSE DNS SETUP — SOAL 8 (TIRION/ns1)
+# =============================================
+# Segmen DMZ: 192.212.3.0/24
+# Reverse zone: 3.212.192.in-addr.arpa
+# =============================================
+
+echo "=== SOAL 8: REVERSE DNS ZONE (TIRION/ns1) ==="
+
+# ===== STEP 1: CREATE REVERSE ZONE FILE =====
+echo "[1/5] Creating reverse zone file..."
+mkdir -p /etc/bind/zones
+
+cat > /etc/bind/zones/db.3.212.192.in-addr.arpa <<'EOF'
+$TTL 604800
+@   IN  SOA ns1.k02.com. root.k02.com. (
+        2025101901 ; Serial
+        604800     ; Refresh
+        86400      ; Retry
+        2419200    ; Expire
+        604800 )   ; Negative Cache TTL
+
+; === Authoritative Nameservers ===
+    IN  NS  ns1.k02.com.
+    IN  NS  ns2.k02.com.
+
+; === PTR RECORDS (DMZ Segment) ===
+10  IN  PTR sirion.k02.com.
+11  IN  PTR tirion.k02.com.
+12  IN  PTR valmar.k02.com.
+13  IN  PTR lindon.k02.com.
+14  IN  PTR vingilot.k02.com.
+EOF
+
+echo "✅ Reverse zone file created"
+
+# ===== STEP 2: REMOVE EXISTING REVERSE ZONE CONFIG (IF ANY) =====
+echo "[2/5] Cleaning old reverse zone configuration..."
+sed -i '/^zone "3\.212\.192\.in-addr\.arpa"/,/^}/d' /etc/bind/named.conf.local
+
+echo "✅ Old config removed (if exists)"
+
+# ===== STEP 3: ADD REVERSE ZONE CONFIGURATION =====
+echo "[3/5] Adding reverse zone configuration..."
+cat >> /etc/bind/named.conf.local <<'EOF'
+
+zone "3.212.192.in-addr.arpa" {
+    type master;
+    file "/etc/bind/zones/db.3.212.192.in-addr.arpa";
+    allow-transfer { 192.212.3.12; };  // Valmar (slave)
+    also-notify { 192.212.3.12; };
+    notify yes;
+};
+EOF
+
+echo "✅ Reverse zone configuration added (no duplicates)"
+
+# ===== STEP 4: VERIFY CONFIGURATION =====
+echo "[4/5] Verifying configuration..."
+named-checkconf
+if [ $? -ne 0 ]; then
+    echo "❌ named-checkconf failed!"
+    exit 1
+fi
+
+named-checkzone 3.212.192.in-addr.arpa /etc/bind/zones/db.3.212.192.in-addr.arpa
+if [ $? -ne 0 ]; then
+    echo "❌ Zone check failed!"
+    exit 1
+fi
+
+echo "✅ Configuration valid!"
+
+# ===== STEP 5: RESTART BIND9 =====
+echo "[5/5] Restarting BIND9..."
+service bind9 restart
+
+if [ $? -eq 0 ]; then
+    echo "✅ BIND9 restart successful!"
+else
+    echo "❌ BIND9 restart failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 8: Reverse DNS Master (Tirion/ns1) setup completed!"
+echo ""
+```
+
+#### Valmar
+```
+#!/bin/bash
+# =============================================
+# REVERSE DNS SLAVE SETUP — SOAL 8 (VALMAR/ns2)
+# =============================================
+
+echo "=== SOAL 8: REVERSE DNS SLAVE (Valmar/ns2) ==="
+
+echo "[1/3] Cleaning old reverse zone configuration..."
+# Hapus reverse zone config yang lama jika ada
+sed -i '/^zone "3\.212\.192\.in-addr\.arpa"/,/^}/d' /etc/bind/named.conf.local
+
+echo "✅ Old config removed (if exists)"
+
+echo "[2/3] Configuring reverse zone slave in named.conf.local..."
+cat >> /etc/bind/named.conf.local <<'EOF'
+
+zone "3.212.192.in-addr.arpa" {
+    type slave;
+    file "/var/cache/bind/db.3.212.192.in-addr.arpa";
+    masters { 192.212.3.11; };  // Tirion (master)
+};
+EOF
+
+echo "✅ Reverse zone slave configuration added (no duplicates)"
+
+echo "[3/3] Verifying and restarting BIND9..."
+named-checkconf
+if [ $? -ne 0 ]; then
+    echo "❌ named-checkconf failed!"
+    exit 1
+fi
+
+service bind9 restart
+
+if [ $? -eq 0 ]; then
+    echo "✅ BIND9 restart successful!"
+else
+    echo "❌ BIND9 restart failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 8: Reverse DNS Slave (Valmar/ns2) setup completed!"
+echo ""
+```
+
+### UJI
+#### Tirion
+```
+dig -x 192.212.3.10
+dig -x 192.212.3.13
+dig -x 192.212.3.14
+```
+<img width="516" height="919" alt="image" src="https://github.com/user-attachments/assets/3675aa7b-ea4f-4b37-b7fc-ff7a36e6938c" />
+
+#### Valmar
+```
+dig -x 192.212.3.10
+dig -x 192.212.3.13
+dig -x 192.212.3.14
+```
+<img width="442" height="787" alt="image" src="https://github.com/user-attachments/assets/9d9d1447-5b67-411b-bec2-9a6a1ad6d28b" />
