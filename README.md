@@ -1915,6 +1915,183 @@ curl -I http://www.k02.com/
 ## Soal_14
 Di Vingilot, catatan kedatangan harus jujur. Pastikan access log aplikasi di Vingilot mencatat IP address klien asli saat lalu lintas melewati Sirion (bukan IP Sirion).
 
+### SCRIPT
+#### Vingilot
+```
+#!/bin/bash
+# =============================================
+# SOAL 14: REAL IP LOGGING — VINGILOT
+# =============================================
+# Pastikan access log mencatat IP klien asli
+# (bukan IP Sirion/reverse proxy)
+# =============================================
+
+echo "=== SOAL 14: REAL IP LOGGING (VINGILOT) ==="
+
+# ===== STEP 1: BACKUP EXISTING CONFIG =====
+echo "[1/4] Backing up existing config..."
+cp /etc/nginx/sites-available/app.k02.com /etc/nginx/sites-available/app.k02.com.bak-soal14
+
+echo "✅ Backup created"
+
+# ===== STEP 2: DETECT PHP VERSION =====
+echo "[2/4] Detecting PHP version..."
+PHP_VERSION=$(php -v | grep -oP 'PHP \K[0-9]+\.[0-9]+')
+PHP_SOCKET="/run/php/php${PHP_VERSION}-fpm.sock"
+
+echo "✅ PHP version: $PHP_VERSION"
+echo "✅ PHP socket: $PHP_SOCKET"
+
+# ===== STEP 3: UPDATE NGINX CONFIG WITH REAL IP LOGGING =====
+echo "[3/4] Updating nginx configuration..."
+
+cat > /etc/nginx/sites-available/app.k02.com <<EOF
+# Custom log format yang menampilkan IP asli dari X-Real-IP dan X-Forwarded-For
+log_format real_ip '\$http_x_real_ip - \$remote_user [\$time_local] '
+                    '"\$request" \$status \$body_bytes_sent '
+                    '"\$http_referer" "\$http_user_agent" '
+                    'X-Forwarded-For: \$http_x_forwarded_for';
+
+server {
+    listen 80;
+    server_name app.k02.com;
+
+    root /var/www/app;
+    index index.php index.html;
+
+    # Gunakan custom log format untuk mencatat real IP
+    access_log /var/log/nginx/app.k02.com.access.log real_ip;
+    error_log /var/log/nginx/app.k02.com.error.log;
+
+    # URL rewriting - /about -> /about.php
+    location / {
+        try_files \$uri \$uri/ \$uri.php?\$query_string;
+    }
+
+    # PHP-FPM configuration
+    location ~ \.php$ {
+        fastcgi_pass unix:${PHP_SOCKET};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+
+        # Pass real IP to PHP application
+        fastcgi_param HTTP_X_REAL_IP \$http_x_real_ip;
+        fastcgi_param HTTP_X_FORWARDED_FOR \$http_x_forwarded_for;
+        fastcgi_param REMOTE_ADDR \$http_x_real_ip;
+
+        include fastcgi_params;
+    }
+
+    # Deny access to .htaccess
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+
+echo "✅ Nginx config updated with real IP logging"
+
+# ===== STEP 4: CREATE PHP TEST PAGE =====
+echo "[4/4] Creating PHP test page to show real IP..."
+
+cat > /var/www/app/showip.php <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IP Address Info - Vingilot</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 40px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .container {
+            background: #000;
+            padding: 30px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+        }
+        h1 { color: #00ff00; margin-top: 0; }
+        .info { margin: 15px 0; padding: 10px; background: #0a0a0a; }
+        .label { color: #ffff00; font-weight: bold; }
+        .value { color: #00ffff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 IP Address Information - Vingilot</h1>
+
+        <div class="info">
+            <span class="label">REMOTE_ADDR:</span>
+            <span class="value"><?php echo $_SERVER['REMOTE_ADDR'] ?? 'N/A'; ?></span>
+        </div>
+
+        <div class="info">
+            <span class="label">HTTP_X_REAL_IP:</span>
+            <span class="value"><?php echo $_SERVER['HTTP_X_REAL_IP'] ?? 'N/A'; ?></span>
+        </div>
+
+        <div class="info">
+            <span class="label">HTTP_X_FORWARDED_FOR:</span>
+            <span class="value"><?php echo $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'N/A'; ?></span>
+        </div>
+
+        <div class="info">
+            <span class="label">HTTP_HOST:</span>
+            <span class="value"><?php echo $_SERVER['HTTP_HOST'] ?? 'N/A'; ?></span>
+        </div>
+
+        <hr style="border-color: #00ff00;">
+        <p style="color: #888;">
+            ✅ Real IP: <?php echo $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR']; ?>
+        </p>
+    </div>
+</body>
+</html>
+EOF
+
+chown www-data:www-data /var/www/app/showip.php
+chmod 644 /var/www/app/showip.php
+
+echo "✅ Test page created: /var/www/app/showip.php"
+
+# ===== STEP 5: VERIFY AND RELOAD =====
+echo "[5/5] Verifying and reloading nginx..."
+
+nginx -t
+
+if [ $? -ne 0 ]; then
+    echo "❌ Config error! Restoring backup..."
+    mv /etc/nginx/sites-available/app.k02.com.bak-soal14 /etc/nginx/sites-available/app.k02.com
+    exit 1
+fi
+
+echo "✅ Config valid"
+
+service nginx reload
+
+if [ $? -eq 0 ]; then
+    echo "✅ Nginx reloaded successfully"
+else
+    echo "❌ Nginx reload failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ SOAL 14: REAL IP LOGGING SETUP COMPLETE!"
+echo ""
+```
+
+### UJI
+#### di semua host kecuali Vingilot (contoh: Earendil)
+`curl http://www.k02.com/app/showip.php`<br>
+<img width="569" height="870" alt="image" src="https://github.com/user-attachments/assets/40e3f036-dc21-4da1-a0e7-4985fef1ec92" />
+
+#### Vingilot
+`tail -5 /var/log/nginx/app.k02.com.access.log`<br>
+<img width="1561" height="142" alt="image" src="https://github.com/user-attachments/assets/2c9650e6-ef4c-4dc7-a4c8-e350b4e83976" />
+
 ## Soal_15 
 Pelabuhan diuji gelombang kecil, salah satu klien yakni Elrond menjadi penguji dan menggunakan ApacheBench (ab) untuk membombardir http://www.<xxxx>.com/app/ dan http://www.<xxxx>.com/static/ melalui hostname kanonik. Untuk setiap endpoint lakukan 500 request dengan concurrency 10, dan rangkum hasil dalam tabel ringkas.
 
