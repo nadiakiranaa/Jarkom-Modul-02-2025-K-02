@@ -1602,7 +1602,7 @@ echo ""
 curl http://www.k02.com/static/
 curl http://www.k02.com/app/
 ```
-<img width="664" height="592" alt="image" src="https://github.com/user-attachments/assets/d2bfb5d5-4260-4150-9cfd-fb2dda5c29ea" />
+<img width="658" height="619" alt="image" src="https://github.com/user-attachments/assets/025750ce-73f9-42b5-be7f-84f6c7b890e9" />
 
 ## Soal_12 
 Ada kamar kecil di balik gerbang yakni /admin. Lindungi path tersebut di Sirion menggunakan Basic Auth, akses tanpa kredensial harus ditolak dan akses dengan kredensial yang benar harus diizinkan.
