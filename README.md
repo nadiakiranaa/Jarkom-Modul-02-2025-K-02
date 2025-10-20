@@ -1103,14 +1103,12 @@ fuser -k 80/tcp 2>/dev/null
 sleep 2
 rm -f /var/run/nginx.pid
 > /var/log/nginx/error.log
-
 echo "✅ Existing processes stopped"
 
 # ===== STEP 2: INSTALL NGINX =====
 echo "[2/8] Installing Nginx..."
-apt update -y
-apt install -y nginx
-
+apt update -y >/dev/null 2>&1
+apt install -y nginx >/dev/null 2>&1
 echo "✅ Nginx installed"
 
 # ===== STEP 3: CREATE ANNALS DIRECTORY =====
@@ -1140,13 +1138,11 @@ echo "✅ /annals/ directory created with sample files"
 echo "[4/8] Setting permissions..."
 chmod -R 755 /annals
 chown -R www-data:www-data /annals
-
 echo "✅ Permissions set"
 
 # ===== STEP 5: DISABLE DEFAULT SITE =====
 echo "[5/8] Disabling default site..."
 rm -f /etc/nginx/sites-enabled/default
-
 echo "✅ Default site disabled"
 
 # ===== STEP 6: CREATE NGINX CONFIG FOR static.k02.com =====
@@ -1155,7 +1151,6 @@ cat > /etc/nginx/sites-available/static.k02.com <<'EOF'
 server {
     listen 80;
     server_name static.k02.com;
-
     root /annals;
     index index.html;
 
@@ -1175,27 +1170,43 @@ echo "✅ Nginx config created (root /annals, no alias conflict)"
 # ===== STEP 7: ENABLE SITE =====
 echo "[7/8] Enabling site..."
 ln -sf /etc/nginx/sites-available/static.k02.com /etc/nginx/sites-enabled/static.k02.com
-
 echo "✅ Site enabled"
 
 # ===== STEP 8: TEST, START, AND VERIFY =====
 echo "[8/8] Testing and starting Nginx..."
-
-nginx -t
+nginx -t 2>&1 | grep -q "successful"
 if [ $? -ne 0 ]; then
     echo "❌ Nginx config error!"
+    nginx -t
     exit 1
 fi
 
-service nginx start
+# Kill any existing nginx and start fresh
+pkill -9 nginx 2>/dev/null
+sleep 1
+
+# Start nginx in foreground or background
+nginx -g 'daemon on;'
 sleep 2
 
-if service nginx status > /dev/null 2>&1; then
+# Check if nginx is running
+if pgrep nginx > /dev/null 2>&1; then
     echo "✅ Nginx started successfully"
 else
     echo "❌ Nginx failed to start!"
-    service nginx status
+    echo "Debug info:"
+    nginx -t
     exit 1
+fi
+
+# ===== VERIFY HOSTS FILE =====
+echo ""
+if grep -q "static.k02.com" /etc/hosts; then
+    echo "ℹ️  /etc/hosts already contains static.k02.com"
+else
+    echo "Adding to /etc/hosts..."
+    echo "192.212.3.13 static.k02.com" >> /etc/hosts
+    echo "ℹ️  /etc/hosts updated"
 fi
 
 echo ""
@@ -1210,7 +1221,7 @@ curl http://static.k02.com
 curl http://static.k02.com/
 curl http://static.k02.com/document1.txt
 ```
-<img width="480" height="383" alt="image" src="https://github.com/user-attachments/assets/d7e918ed-2c70-4fe6-aa46-1b6e6da11d1d" />
+<img width="751" height="602" alt="image" src="https://github.com/user-attachments/assets/0a936115-acf6-4893-b924-4012d15b19f8" />
 
 ## Soal_10 
 Vingilot mengisahkan cerita dinamis. Jalankan web dinamis (PHP-FPM) pada hostname app.<xxxx>.com dengan beranda dan halaman about, serta terapkan rewrite sehingga /about berfungsi tanpa akhiran .php. Akses harus dilakukan melalui hostname.
