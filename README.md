@@ -3583,8 +3583,10 @@ dig @192.212.3.11 xyz.k02.com A +short
 curl http://random.k02.com/
 curl http://test.k02.com/
 curl http://anything.k02.com/
+lynx www.k02.com
 ```
 <img width="558" height="455" alt="image" src="https://github.com/user-attachments/assets/ec6783fb-351b-4d3d-af74-ff57bb40e822" />
+<img width="485" height="910" alt="image" src="https://github.com/user-attachments/assets/b8b0ddde-3548-406c-8d3b-491e722939a8" />
 
 
 
